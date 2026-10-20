@@ -111,10 +111,15 @@ fn strip_ref(r: &str) -> &str {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Schema {
+    #[serde(rename = "type")]
+    pub ty: Option<String>,
     #[serde(default)]
     pub properties: IndexMap<String, Property>,
     #[serde(default)]
     pub required: Vec<String>,
+    /// Set on enum component schemas (`Policy692Enum`).
+    #[serde(rename = "enum", default)]
+    pub enum_values: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -132,6 +137,7 @@ pub struct Property {
     pub nullable: bool,
     #[serde(rename = "enum", default)]
     pub enum_values: Vec<serde_json::Value>,
+    pub default: Option<serde_json::Value>,
     pub description: Option<String>,
     pub items: Option<Box<Property>>,
     #[serde(rename = "allOf", default)]
@@ -147,6 +153,21 @@ impl Property {
             || !self.all_of.is_empty()
             || !self.one_of.is_empty()
     }
+
+    /// Component schema names this property points to (`$ref`, `allOf`, `oneOf`).
+    fn refs(&self) -> impl Iterator<Item = &str> {
+        self.reference
+            .iter()
+            .chain(self.all_of.iter().chain(&self.one_of).filter_map(|p| p.reference.as_ref()))
+            .map(|r| strip_ref(r))
+    }
+}
+
+/// Top-level POST endpoint without a list (`orphans/cleanup/`, `repair/`, `tasks/purge/`).
+#[derive(Debug, Clone)]
+pub struct GlobalOperation {
+    pub path: String,
+    pub body_schema: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -241,6 +262,8 @@ pub struct Registry {
     types: Vec<ResourceType>,
     by_id: HashMap<String, usize>,
     schemas: HashMap<String, Schema>,
+    /// Keyed by path relative to the API prefix (`orphans/cleanup/`).
+    operations: HashMap<String, GlobalOperation>,
 }
 
 struct ListOp<'a> {
@@ -323,6 +346,7 @@ impl Registry {
         }
 
         // Attach create/read/update/delete/actions.
+        let mut operations = HashMap::new();
         for (path, item) in &paths {
             for (method, op) in item.operations() {
                 if let Some(rel) = path.strip_prefix(api_prefix)
@@ -335,6 +359,9 @@ impl Registry {
                         types[idx].ops.create = true;
                         types[idx].create_schema =
                             op.request_body.as_ref().and_then(|b| b.schema_ref()).map(str::to_owned);
+                    } else if method == Method::Post && item.get.is_none() {
+                        let body_schema = op.request_body.as_ref().and_then(|b| b.schema_ref()).map(str::to_owned);
+                        operations.insert(rel.to_owned(), GlobalOperation { path: path.clone(), body_schema });
                     }
                     continue;
                 }
@@ -369,7 +396,7 @@ impl Registry {
         }
 
         let schemas = doc.components.schemas;
-        let mut reg = Registry { types, by_id: HashMap::new(), schemas };
+        let mut reg = Registry { types, by_id: HashMap::new(), schemas, operations };
         reg.fill_list_read_schemas(&lists, &by_prefix);
         reg.types.sort_by(|a, b| a.id.cmp(&b.id));
         reg.by_id = reg.types.iter().enumerate().map(|(i, t)| (t.id.clone(), i)).collect();
@@ -405,6 +432,28 @@ impl Registry {
 
     pub fn schema(&self, name: &str) -> Option<&Schema> {
         self.schemas.get(name)
+    }
+
+    /// Global operation by path relative to the API prefix (`repair/`).
+    pub fn operation(&self, rel: &str) -> Option<&GlobalOperation> {
+        self.operations.get(rel)
+    }
+
+    /// Allowed values of an enum property (inline, `$ref`/`allOf`/`oneOf` to an enum
+    /// schema, or the items of an array of enums). Null choices are dropped.
+    pub fn enum_choices(&self, prop: &Property) -> Vec<String> {
+        let strings = |values: &[serde_json::Value]| -> Vec<String> {
+            values.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()
+        };
+        if !prop.enum_values.is_empty() {
+            return strings(&prop.enum_values);
+        }
+        let from_refs: Vec<String> =
+            prop.refs().filter_map(|r| self.schema(r)).flat_map(|s| strings(&s.enum_values)).collect();
+        if !from_refs.is_empty() {
+            return from_refs;
+        }
+        prop.items.as_deref().map(|items| self.enum_choices(items)).unwrap_or_default()
     }
 
     pub fn read_schema(&self, t: &ResourceType) -> Option<&Schema> {
@@ -567,6 +616,25 @@ mod tests {
         assert!(reg.get("repositories/file/file").unwrap().children.contains(&versions.id));
         // Galaxy v1 endpoint on a content href must not become a child of content roles.
         assert!(reg.get("content/ansible/roles/versions").is_none());
+    }
+
+    #[test]
+    fn exposes_enum_choices_and_global_operations() {
+        let reg = fixture();
+        let remote = reg.schema("file.FileRemote").unwrap();
+        assert_eq!(reg.enum_choices(&remote.properties["policy"]), ["immediate", "on_demand", "streamed"]);
+        let sync = reg.schema("RpmRepositorySyncURL").unwrap();
+        assert_eq!(reg.enum_choices(&sync.properties["skip_types"]), ["srpm", "treeinfo"]);
+        assert!(reg.enum_choices(&sync.properties["sync_policy"]).contains(&"mirror_complete".to_owned()));
+        assert!(reg.enum_choices(&remote.properties["url"]).is_empty());
+
+        let cleanup = reg.operation("orphans/cleanup/").unwrap();
+        assert_eq!(cleanup.path, "/pulp/api/v3/orphans/cleanup/");
+        assert_eq!(cleanup.body_schema.as_deref(), Some("OrphansCleanup"));
+        for op in ["repair/", "tasks/purge/", "repositories/reclaim_space/"] {
+            assert!(reg.operation(op).is_some(), "{op}");
+        }
+        assert!(reg.operation("tasks/").is_none(), "list endpoints are not operations");
     }
 
     #[test]

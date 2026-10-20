@@ -28,6 +28,11 @@ impl ResourceExt for Value {
     }
 }
 
+/// Task href of an asynchronous operation response (`{"task": "/pulp/api/v3/tasks/…/"}`).
+pub fn task_href(response: &Value) -> Option<&str> {
+    response.get("task").and_then(Value::as_str)
+}
+
 /// Is this string a Pulp href (absolute API path)?
 pub fn is_href(s: &str) -> bool {
     s.starts_with('/') && s.contains("/api/v3/") && s.ends_with('/')
