@@ -15,7 +15,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::columns::{self, Column, SortValue};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, detail, summary, task};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, summary, task};
 use crate::format;
 use crate::labels;
 
@@ -62,6 +62,8 @@ pub struct ListView {
     keep_href: Option<String>,
     /// Hrefs already sent for name resolution.
     requested: HashSet<String>,
+    /// Rows marked with Space for bulk actions.
+    marked: HashSet<String>,
 }
 
 impl ListView {
@@ -104,6 +106,7 @@ impl ListView {
             task_state: 0,
             keep_href: None,
             requested: HashSet::new(),
+            marked: HashSet::new(),
         }
     }
 
@@ -252,6 +255,12 @@ impl ListView {
         }
     }
 
+    /// The resource under the cursor supports DELETE.
+    fn can_delete(&self, ctx: &Ctx) -> bool {
+        let Some(reg) = ctx.registry() else { return false };
+        self.selected().and_then(|r| r.href()).and_then(|h| reg.type_for_href(h)).is_some_and(|t| t.ops.delete)
+    }
+
     fn has_running_tasks(&self) -> bool {
         self.kind == Kind::Tasks
             && self.rows.iter().any(|r| matches!(r.str_field("state"), Some("running" | "waiting" | "canceling")))
@@ -339,7 +348,7 @@ impl View for ListView {
         parts.join("  ")
     }
 
-    fn hints(&self, _ctx: &Ctx) -> Vec<Hint> {
+    fn hints(&self, ctx: &Ctx) -> Vec<Hint> {
         let mut h = vec![
             Hint::new("↵", t!("hint.open")),
             Hint::new("d", t!("hint.describe")),
@@ -347,6 +356,14 @@ impl View for ListView {
         ];
         if self.kind == Kind::Tasks {
             h.push(Hint::new("f", t!("hint.task_state")));
+        }
+        if !ctx.readonly() {
+            h.push(Hint::new("space", t!("hint.mark")));
+            if self.kind == Kind::Tasks {
+                h.push(Hint::new("ctrl-k", t!("hint.cancel_task")));
+            } else if self.can_delete(ctx) {
+                h.push(Hint::new("ctrl-d", t!("hint.delete")));
+            }
         }
         h.push(Hint::new("⇧A-Z", t!("hint.sort")));
         h
@@ -356,18 +373,50 @@ impl View for ListView {
         if let Some(o) = self.move_cursor(key) {
             return o;
         }
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
             KeyCode::Enter => self.open_selected(ctx, false),
-            KeyCode::Char('d') => self.open_selected(ctx, true),
+            KeyCode::Char('d') if !ctrl => self.open_selected(ctx, true),
             KeyCode::Char('f') if self.kind == Kind::Tasks => {
                 self.task_state = (self.task_state + 1) % TASK_STATES.len();
                 Outcome::Fetch(FetchKind::Refresh)
             }
-            KeyCode::Esc if !self.filter.is_empty() => self.set_filter("", true),
-            KeyCode::Char(c) if c.is_ascii_uppercase() && !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.toggle_sort(c)
+            KeyCode::Char(' ') => {
+                if let Some(href) = self.selected().and_then(|r| r.href()).map(str::to_owned)
+                    && !self.marked.remove(&href)
+                {
+                    self.marked.insert(href);
+                }
+                self.move_cursor(KeyEvent::from(KeyCode::Down)).unwrap_or(Outcome::None)
             }
+            KeyCode::Char('d') if ctrl && self.kind != Kind::Tasks && self.can_delete(ctx) => {
+                actions::delete(self.selection(), ctx, false)
+            }
+            KeyCode::Char('k') if ctrl && self.kind == Kind::Tasks => {
+                let active: Vec<String> = self
+                    .selection()
+                    .into_iter()
+                    .filter(|h| {
+                        self.rows
+                            .iter()
+                            .any(|r| r.href() == Some(h) && r.str_field("state").is_some_and(task::is_active))
+                    })
+                    .collect();
+                actions::cancel_tasks(active, ctx)
+            }
+            KeyCode::Esc if !self.filter.is_empty() => self.set_filter("", true),
+            KeyCode::Char(c) if c.is_ascii_uppercase() && !ctrl => self.toggle_sort(c),
             _ => Outcome::Ignored,
+        }
+    }
+
+    fn selection(&self) -> Vec<String> {
+        if self.marked.is_empty() {
+            self.selected().and_then(|r| r.href()).map(|h| vec![h.to_owned()]).unwrap_or_default()
+        } else {
+            let mut marked: Vec<String> = self.marked.iter().cloned().collect();
+            marked.sort();
+            marked
         }
     }
 
@@ -384,8 +433,22 @@ impl View for ListView {
             f.render_widget(Paragraph::new(Line::styled(msg.into_owned(), ctx.theme.muted())), table_area);
             return;
         }
-        let texts: Vec<Vec<(String, Style)>> =
-            self.visible.iter().map(|&i| self.columns.iter().map(|c| c.text(&self.rows[i], ctx)).collect()).collect();
+        let texts: Vec<Vec<(String, Style)>> = self
+            .visible
+            .iter()
+            .map(|&i| {
+                let row = &self.rows[i];
+                let marked = row.href().is_some_and(|h| self.marked.contains(h));
+                let mut cells: Vec<(String, Style)> = self.columns.iter().map(|c| c.text(row, ctx)).collect();
+                if let Some(first) = cells.first_mut() {
+                    first.0.insert_str(0, if marked { "● " } else { "  " });
+                    if marked {
+                        first.1 = ctx.theme.accent();
+                    }
+                }
+                cells
+            })
+            .collect();
         let widths: Vec<Constraint> = self
             .columns
             .iter()
@@ -397,7 +460,8 @@ impl View for ListView {
                     .map(|r| unicode_width::UnicodeWidthStr::width(r[ci].0.as_str()))
                     .max()
                     .unwrap_or(0);
-                Constraint::Length((content.max(c.header.len() + 1) as u16).clamp(4, 60))
+                let header_w = c.header.len() + 1 + if ci == 0 { 2 } else { 0 };
+                Constraint::Length((content.max(header_w) as u16).clamp(4, 60))
             })
             .collect();
         let header = Row::new(self.columns.iter().enumerate().map(|(i, c)| {
@@ -406,7 +470,11 @@ impl View for ListView {
                 Some((col, false)) if col == i => "↑",
                 _ => "",
             };
-            Cell::from(Span::styled(format!("{}{arrow}", c.header), ctx.theme.accent().add_modifier(Modifier::BOLD)))
+            let pad = if i == 0 { "  " } else { "" };
+            Cell::from(Span::styled(
+                format!("{pad}{}{arrow}", c.header),
+                ctx.theme.accent().add_modifier(Modifier::BOLD),
+            ))
         }));
         let rows = texts
             .into_iter()
@@ -438,6 +506,8 @@ impl View for ListView {
                         // Keep the cursor on the same resource across refreshes.
                         self.keep_href = self.selected().and_then(|r| r.href()).map(str::to_owned);
                         self.rows = page.results;
+                        let rows = &self.rows;
+                        self.marked.retain(|h| rows.iter().any(|r| r.href() == Some(h.as_str())));
                     }
                     FetchKind::More => self.rows.extend(page.results),
                 }

@@ -1,4 +1,4 @@
-//! Application state, event loop, polling and navigation.
+//! Application state, event loop, polling, navigation and mutations.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -8,9 +8,11 @@ use color_eyre::eyre::Result;
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use futures::StreamExt;
 use futures::future::join_all;
+use pulply_api::models::task_href;
 use pulply_api::{Error, PulpClient, Registry, ResourceExt, Status};
 use ratatui::DefaultTerminal;
 use rust_i18n::t;
+use serde_json::Value;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::AbortHandle;
 
@@ -25,7 +27,8 @@ use crate::views::connect::{ConnectView, State as ConnectState};
 use crate::views::contexts::ContextView;
 use crate::views::dashboard::DashboardView;
 use crate::views::list::ListView;
-use crate::views::{FetchKind, Level, Outcome, Payload, View};
+use crate::views::task::{TaskView, is_active};
+use crate::views::{AfterTask, FetchKind, Level, Mutation, Outcome, Payload, View};
 
 /// Builds a [`crate::views::Ctx`] from disjoint fields so a view can be borrowed mutably alongside.
 macro_rules! ctx {
@@ -43,7 +46,8 @@ macro_rules! ctx {
 pub(crate) use ctx;
 
 const TICK: Duration = Duration::from_millis(250);
-const NOTICE_TTL: Duration = Duration::from_secs(6);
+const NOTICE_TTL: Duration = Duration::from_secs(8);
+const TRACK_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptKind {
@@ -77,6 +81,22 @@ impl Slot {
             t.abort();
         }
     }
+
+    fn due(&self, refresh: Duration) -> bool {
+        self.inflight.is_empty()
+            && self.view.poll_interval(refresh).is_some_and(|iv| self.last_poll.is_none_or(|t| t.elapsed() >= iv))
+    }
+}
+
+/// A task spawned by one of our mutations, polled until it finishes.
+pub struct Tracked {
+    pub href: String,
+    pub label: String,
+    pub state: String,
+    pub progress: Option<(u64, u64)>,
+    after: AfterTask,
+    /// Path the mutation targeted (an updated distribution, for instance).
+    subject: String,
 }
 
 enum Msg {
@@ -85,6 +105,9 @@ enum Msg {
     Data { generation: u64, view: u64, kind: FetchKind, result: Result<Payload, Error> },
     Names { generation: u64, entries: Vec<(String, String)> },
     TaskCounts { generation: u64, running: u64, waiting: u64 },
+    Mutated { generation: u64, view: u64, mutation: Mutation, result: Result<Value, Error> },
+    Tracked { generation: u64, results: Vec<(String, Result<Value, Error>)> },
+    Notice { generation: u64, level: Level, text: String },
 }
 
 pub struct Options {
@@ -102,6 +125,7 @@ pub struct App {
     pub session: Option<Session>,
     pub ctx_name: String,
     pub stack: Vec<Slot>,
+    pub overlay: Option<Slot>,
     forward: Vec<Box<dyn View>>,
     pub sidebar: Sidebar,
     pub sidebar_visible: bool,
@@ -116,6 +140,9 @@ pub struct App {
     pub task_counts: Option<(u64, u64)>,
     last_counts: Option<Instant>,
     counts_inflight: bool,
+    pub tracked: Vec<Tracked>,
+    last_track: Option<Instant>,
+    track_inflight: bool,
     pending_command: Option<String>,
     netrc: Vec<netrc::Entry>,
     password: Option<String>,
@@ -125,6 +152,14 @@ pub struct App {
     next_id: u64,
     background: Vec<AbortHandle>,
     quit: bool,
+}
+
+/// Slot with this id, in the stack or the overlay.
+fn find_slot<'a>(stack: &'a mut [Slot], overlay: &'a mut Option<Slot>, id: u64) -> Option<&'a mut Slot> {
+    match overlay {
+        Some(o) if o.id == id => Some(o),
+        _ => stack.iter_mut().find(|s| s.id == id),
+    }
 }
 
 impl App {
@@ -140,6 +175,7 @@ impl App {
             session: None,
             ctx_name,
             stack: Vec::new(),
+            overlay: None,
             forward: Vec::new(),
             sidebar: Sidebar::build(None, None),
             sidebar_visible: true,
@@ -154,6 +190,9 @@ impl App {
             task_counts: None,
             last_counts: None,
             counts_inflight: false,
+            tracked: Vec::new(),
+            last_track: None,
+            track_inflight: false,
             pending_command: None,
             netrc,
             password: None,
@@ -218,6 +257,9 @@ impl App {
         self.session = None;
         self.names.clear();
         self.task_counts = None;
+        self.tracked.clear();
+        self.track_inflight = false;
+        self.close_overlay();
         self.ctx_name = name.clone();
         self.sidebar = Sidebar::build(None, Some(&self.sidebar));
         self.rebuild_completions();
@@ -278,14 +320,13 @@ impl App {
                 Err(e) => self.notify(Level::Error, t!("notice.schema_failed", error = e.to_string()).into_owned()),
             },
             Msg::Data { generation, view, kind, result } if generation == self.generation => {
-                let Some(idx) = self.stack.iter().position(|s| s.id == view) else { return };
                 match &result {
                     Ok(Payload::Page(page)) => page.results.iter().for_each(|r| self.names.learn(r)),
                     Ok(Payload::Object(obj)) => self.names.learn(obj),
                     _ => {}
                 }
                 let ctx = ctx!(self);
-                let slot = &mut self.stack[idx];
+                let Some(slot) = find_slot(&mut self.stack, &mut self.overlay, view) else { return };
                 slot.inflight.remove(&kind);
                 if kind == FetchKind::Refresh {
                     slot.last_poll = Some(Instant::now());
@@ -302,7 +343,11 @@ impl App {
                 self.counts_inflight = false;
                 self.task_counts = Some((running, waiting));
             }
-            Msg::TaskCounts { .. } => self.counts_inflight = false,
+            Msg::Mutated { generation, view, mutation, result } if generation == self.generation => {
+                self.on_mutated(view, mutation, result);
+            }
+            Msg::Tracked { generation, results } if generation == self.generation => self.on_tracked(results),
+            Msg::Notice { generation, level, text } if generation == self.generation => self.notify(level, text),
             _ => {} // stale message from a previous context
         }
     }
@@ -342,22 +387,160 @@ impl App {
         }
     }
 
+    // ------------------------------------------------------------ mutations
+
+    fn mutate(&mut self, mutation: Mutation, view: u64) {
+        let Some(s) = &self.session else { return };
+        if s.client.readonly() {
+            self.apply(Outcome::readonly(), view);
+            return;
+        }
+        let (client, generation) = (s.client.clone(), self.generation);
+        tracing::info!(method = %mutation.method, path = mutation.path, "mutation");
+        self.spawn(async move {
+            let result = client.mutate(mutation.method.clone(), &mutation.path, mutation.body.as_ref()).await;
+            Msg::Mutated { generation, view, mutation, result }
+        });
+    }
+
+    fn on_mutated(&mut self, view: u64, mutation: Mutation, result: Result<Value, Error>) {
+        let mut handled = false;
+        if mutation.reply
+            && let Some(slot) = find_slot(&mut self.stack, &mut self.overlay, view)
+        {
+            let outcome = slot.view.on_mutated(&result);
+            handled = !matches!(outcome, Outcome::Ignored);
+            self.apply(outcome, view);
+        }
+        match result {
+            Ok(body) => match task_href(&body) {
+                Some(task) => {
+                    self.tracked.push(Tracked {
+                        href: task.to_owned(),
+                        label: mutation.label.clone(),
+                        state: "waiting".into(),
+                        progress: None,
+                        after: mutation.after.clone(),
+                        subject: mutation.path.clone(),
+                    });
+                    self.last_track = None;
+                    if self.overlay.is_none() {
+                        self.open_overlay(Box::new(TaskView::new(task.to_owned())));
+                    }
+                }
+                None => {
+                    self.notify(Level::Success, t!("notice.done", label = mutation.label).into_owned());
+                    self.refresh_visible();
+                }
+            },
+            Err(_) if handled => {}
+            Err(e) => self.notify(Level::Error, format!("{}: {e}", mutation.label)),
+        }
+    }
+
+    fn poll_tracked(&mut self) {
+        let Some(s) = &self.session else { return };
+        let hrefs: Vec<String> = self.tracked.iter().map(|t| t.href.clone()).collect();
+        if hrefs.is_empty() {
+            return;
+        }
+        self.track_inflight = true;
+        self.last_track = Some(Instant::now());
+        let (client, generation) = (s.client.clone(), self.generation);
+        self.spawn(async move {
+            let query = [("fields".to_owned(), "pulp_href,state,progress_reports,error,created_resources".to_owned())];
+            let results = join_all(hrefs.iter().map(|h| client.get(h, &query))).await;
+            Msg::Tracked { generation, results: hrefs.into_iter().zip(results).collect() }
+        });
+    }
+
+    fn on_tracked(&mut self, results: Vec<(String, Result<Value, Error>)>) {
+        self.track_inflight = false;
+        let mut finished = Vec::new();
+        for (href, result) in results {
+            let Some(pos) = self.tracked.iter().position(|t| t.href == href) else { continue };
+            let task = match result {
+                Ok(task) => task,
+                Err(e) => {
+                    let t = self.tracked.remove(pos);
+                    self.notify(Level::Error, format!("{}: {e}", t.label));
+                    continue;
+                }
+            };
+            let tracked = &mut self.tracked[pos];
+            tracked.state = task.str_field("state").unwrap_or_default().to_owned();
+            tracked.progress = task
+                .get("progress_reports")
+                .and_then(Value::as_array)
+                .and_then(|reports| {
+                    reports.iter().find(|r| r.str_field("state") == Some("running")).or_else(|| reports.first())
+                })
+                .and_then(|r| Some((r.get("done")?.as_u64()?, r.get("total")?.as_u64()?)));
+            if !is_active(&tracked.state) {
+                finished.push((self.tracked.remove(pos), task));
+            }
+        }
+        for (tracked, task) in finished {
+            self.on_task_finished(tracked, &task);
+        }
+    }
+
+    fn on_task_finished(&mut self, tracked: Tracked, task: &Value) {
+        match tracked.state.as_str() {
+            "completed" => {
+                self.notify(Level::Success, t!("notice.task_completed", label = tracked.label).into_owned());
+                if tracked.after == AfterTask::ShowDistribution {
+                    let created = task.get("created_resources").and_then(Value::as_array).into_iter().flatten();
+                    let dist = created
+                        .filter_map(Value::as_str)
+                        .find(|h| h.contains("/distributions/"))
+                        .map(str::to_owned)
+                        .or_else(|| tracked.subject.contains("/distributions/").then(|| tracked.subject.clone()));
+                    if let (Some(dist), Some(s)) = (dist, &self.session) {
+                        let (client, generation) = (s.client.clone(), self.generation);
+                        self.spawn(async move {
+                            let (level, text) = match client.get(&dist, &[]).await {
+                                Ok(d) => {
+                                    let url = d.str_field("base_url").unwrap_or_default();
+                                    (Level::Success, t!("notice.distribution_url", url = url).into_owned())
+                                }
+                                Err(e) => (Level::Error, e.to_string()),
+                            };
+                            Msg::Notice { generation, level, text }
+                        });
+                    }
+                }
+            }
+            "failed" => {
+                let reason = task.get("error").and_then(|e| e.str_field("description")).unwrap_or_default();
+                self.notify(Level::Error, t!("notice.task_failed", label = tracked.label, error = reason).into_owned());
+            }
+            state => self.notify(Level::Info, format!("{}: {state}", tracked.label)),
+        }
+        self.refresh_visible();
+    }
+
     // ------------------------------------------------------------ polling
 
     fn on_tick(&mut self) {
         if self.notice.as_ref().is_some_and(|n| n.at.elapsed() > NOTICE_TTL) {
             self.notice = None;
         }
+        if !self.track_inflight
+            && !self.tracked.is_empty()
+            && self.last_track.is_none_or(|t| t.elapsed() >= TRACK_INTERVAL)
+        {
+            self.poll_tracked();
+        }
         if self.paused {
             return;
         }
         let refresh = self.refresh_interval();
-        if let Some(slot) = self.stack.last() {
-            let due =
-                slot.view.poll_interval(refresh).is_some_and(|iv| slot.last_poll.is_none_or(|t| t.elapsed() >= iv));
-            if due && slot.inflight.is_empty() {
-                self.fetch_top();
-            }
+        if let Some(id) = self.stack.last().filter(|s| s.due(refresh)).map(|s| s.id) {
+            self.fetch_view(id, FetchKind::Refresh);
+        }
+        if let Some(id) = self.overlay.as_ref().filter(|s| s.due(refresh)).map(|s| s.id) {
+            self.fetch_view(id, FetchKind::Refresh);
         }
         if let Some(s) = &self.session
             && !self.counts_inflight
@@ -380,14 +563,22 @@ impl App {
     }
 
     fn fetch_top(&mut self) {
-        if let Some(idx) = self.stack.len().checked_sub(1) {
-            self.fetch_slot(idx, FetchKind::Refresh);
+        if let Some(id) = self.stack.last().map(|s| s.id) {
+            self.fetch_view(id, FetchKind::Refresh);
         }
     }
 
-    fn fetch_slot(&mut self, idx: usize, kind: FetchKind) {
+    /// Refreshes what is on screen after a change (top view and overlay).
+    fn refresh_visible(&mut self) {
+        self.fetch_top();
+        if let Some(id) = self.overlay.as_ref().map(|s| s.id) {
+            self.fetch_view(id, FetchKind::Refresh);
+        }
+    }
+
+    fn fetch_view(&mut self, id: u64, kind: FetchKind) {
         let ctx = ctx!(self);
-        let slot = &mut self.stack[idx];
+        let Some(slot) = find_slot(&mut self.stack, &mut self.overlay, id) else { return };
         if slot.inflight.contains(&kind) {
             return;
         }
@@ -396,10 +587,10 @@ impl App {
             return;
         };
         slot.inflight.insert(kind);
-        let (tx, generation, view) = (self.tx.clone(), self.generation, slot.id);
+        let (tx, generation) = (self.tx.clone(), self.generation);
         let handle = tokio::spawn(async move {
             let result = fut.await;
-            let _ = tx.send(Msg::Data { generation, view, kind, result });
+            let _ = tx.send(Msg::Data { generation, view: id, kind, result });
         });
         slot.tasks.retain(|h| !h.is_finished());
         slot.tasks.push(handle.abort_handle());
@@ -447,8 +638,9 @@ impl App {
 
     // ------------------------------------------------------------ navigation
 
-    fn new_slot(&mut self, view: Box<dyn View>) -> Slot {
+    fn new_slot(&mut self, mut view: Box<dyn View>) -> Slot {
         self.next_id += 1;
+        view.set_id(self.next_id);
         Slot { id: self.next_id, view, last_poll: None, inflight: HashSet::new(), tasks: Vec::new() }
     }
 
@@ -482,6 +674,20 @@ impl App {
             self.forward.push(slot.view);
         }
         self.fetch_top();
+    }
+
+    fn open_overlay(&mut self, view: Box<dyn View>) {
+        self.close_overlay();
+        let slot = self.new_slot(view);
+        let id = slot.id;
+        self.overlay = Some(slot);
+        self.fetch_view(id, FetchKind::Refresh);
+    }
+
+    fn close_overlay(&mut self) {
+        if let Some(mut slot) = self.overlay.take() {
+            slot.abort();
+        }
     }
 
     fn open(&mut self, target: Target) {
@@ -546,11 +752,10 @@ impl App {
         match outcome {
             Outcome::Ignored | Outcome::None => {}
             Outcome::Push(v) => self.push(v),
-            Outcome::Fetch(kind) => {
-                if let Some(idx) = self.stack.iter().position(|s| s.id == view_id) {
-                    self.fetch_slot(idx, kind);
-                }
-            }
+            Outcome::Pop => self.pop(),
+            Outcome::Overlay(v) => self.open_overlay(v),
+            Outcome::CloseOverlay => self.close_overlay(),
+            Outcome::Fetch(kind) => self.fetch_view(view_id, kind),
             Outcome::Open(target) => self.open(target),
             Outcome::SwitchContext(name) => self.start_connect(name),
             Outcome::SubmitPassword(pw) => {
@@ -559,6 +764,18 @@ impl App {
             }
             Outcome::Retry => self.start_connect(self.ctx_name.clone()),
             Outcome::Resolve(hrefs) => self.resolve(hrefs),
+            Outcome::Mutate(m) => self.mutate(m, view_id),
+            Outcome::Deliver { view, key, value } => {
+                if let Some(slot) = find_slot(&mut self.stack, &mut self.overlay, view) {
+                    slot.view.receive(&key, value);
+                }
+            }
+            Outcome::Notify(level, text) => self.notify(level, text),
+            Outcome::Batch(all) => {
+                for o in all {
+                    self.apply(o, view_id);
+                }
+            }
         }
     }
 
@@ -576,6 +793,10 @@ impl App {
         }
         if self.prompt.is_some() {
             self.prompt_key(key);
+            return;
+        }
+        if self.overlay.is_some() {
+            self.overlay_key(key);
             return;
         }
         let Some(top) = self.stack.last() else { return };
@@ -646,6 +867,22 @@ impl App {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// Keys go to the overlay; Esc/q close it (a task modal keeps being tracked in the
+    /// status bar). Views it opens replace it on the main stack.
+    fn overlay_key(&mut self, key: KeyEvent) {
+        let ctx = ctx!(self);
+        let Some(slot) = self.overlay.as_mut() else { return };
+        let id = slot.id;
+        match slot.view.handle_key(key, &ctx) {
+            Outcome::Ignored if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) => self.close_overlay(),
+            Outcome::Push(view) => {
+                self.close_overlay();
+                self.push(view);
+            }
+            outcome => self.apply(outcome, id),
         }
     }
 

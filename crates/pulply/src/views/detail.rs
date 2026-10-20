@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use futures::FutureExt;
 use pulply_api::models::{is_href, version_number, version_repository};
 use pulply_api::{Error, ResourceExt};
@@ -14,7 +14,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::lines::{LineList, json_lines};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, open_href};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, open_href};
 use crate::format;
 use crate::names::NameCache;
 
@@ -34,6 +34,10 @@ pub struct DetailView {
 impl DetailView {
     pub fn new(href: String) -> Self {
         Self { href, label: None, data: None, lines: LineList::default(), error: None, resolved: false }
+    }
+
+    fn can_delete(&self, ctx: &Ctx) -> bool {
+        ctx.registry().and_then(|r| r.type_for_href(&self.href)).is_some_and(|t| t.ops.delete)
     }
 }
 
@@ -68,19 +72,25 @@ impl View for DetailView {
         self.label.clone().unwrap_or_else(|| format::short_href(&self.href))
     }
 
-    fn hints(&self, _ctx: &Ctx) -> Vec<Hint> {
-        vec![Hint::new("↵", t!("hint.follow")), Hint::new("j/k", t!("hint.scroll"))]
+    fn hints(&self, ctx: &Ctx) -> Vec<Hint> {
+        let mut h = vec![Hint::new("↵", t!("hint.follow")), Hint::new("j/k", t!("hint.scroll"))];
+        if !ctx.readonly() && self.can_delete(ctx) {
+            h.push(Hint::new("ctrl-d", t!("hint.delete")));
+        }
+        h
     }
 
     fn handle_key(&mut self, key: KeyEvent, ctx: &Ctx) -> Outcome {
         if self.lines.handle_key(key) {
             return Outcome::None;
         }
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
             KeyCode::Enter => match self.lines.selected_href().and_then(|h| open_href(h, ctx)) {
                 Some(view) => Outcome::Push(view),
                 None => Outcome::None,
             },
+            KeyCode::Char('d') if ctrl && self.can_delete(ctx) => actions::delete(vec![self.href.clone()], ctx, true),
             _ => Outcome::Ignored,
         }
     }

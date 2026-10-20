@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use futures::FutureExt;
 use pulply_api::models::is_href;
 use pulply_api::{Error, ResourceExt};
@@ -15,7 +15,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::lines::{LineItem, LineList};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, detail, open_href};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, open_href};
 use crate::format;
 use crate::theme::Theme;
 
@@ -191,20 +191,29 @@ impl View for TaskView {
         self.state().unwrap_or_default().to_owned()
     }
 
-    fn hints(&self, _ctx: &Ctx) -> Vec<Hint> {
-        vec![Hint::new("↵", t!("hint.follow")), Hint::new("d", t!("hint.describe"))]
+    fn hints(&self, ctx: &Ctx) -> Vec<Hint> {
+        let mut h = vec![Hint::new("↵", t!("hint.follow")), Hint::new("d", t!("hint.describe"))];
+        if !ctx.readonly() && self.state().is_some_and(is_active) {
+            h.push(Hint::new("ctrl-k", t!("hint.cancel_task")));
+        }
+        h.push(Hint::new("esc", t!("hint.close")));
+        h
     }
 
     fn handle_key(&mut self, key: KeyEvent, ctx: &Ctx) -> Outcome {
         if self.lines.handle_key(key) {
             return Outcome::None;
         }
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
             KeyCode::Enter => match self.lines.selected_href().and_then(|h| open_href(h, ctx)) {
                 Some(v) => Outcome::Push(v),
                 None => Outcome::None,
             },
-            KeyCode::Char('d') => Outcome::Push(Box::new(detail::DetailView::new(self.href.clone()))),
+            KeyCode::Char('k') if ctrl && self.state().is_some_and(is_active) => {
+                actions::cancel_tasks(vec![self.href.clone()], ctx)
+            }
+            KeyCode::Char('d') if !ctrl => Outcome::Push(Box::new(detail::DetailView::new(self.href.clone()))),
             _ => Outcome::Ignored,
         }
     }

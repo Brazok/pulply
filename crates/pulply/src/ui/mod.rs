@@ -41,7 +41,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     let ctx = ctx!(app);
     let breadcrumb = app.stack.iter().map(|s| s.view.title()).collect::<Vec<_>>().join(" › ");
-    let (info, view_hints) = app.stack.last().map(|s| (s.view.info(&ctx), s.view.hints(&ctx))).unwrap_or_default();
+    let info = app.stack.last().map(|s| s.view.info(&ctx)).unwrap_or_default();
+    // Hints follow the focused layer: the overlay when one is open.
+    let view_hints = app.overlay.as_ref().or(app.stack.last()).map(|s| s.view.hints(&ctx)).unwrap_or_default();
     let border = if app.sidebar_focus { app.theme.border } else { app.theme.border_focus };
     let block = Block::bordered()
         .border_style(Style::new().fg(border))
@@ -50,6 +52,20 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let inner = block.inner(main);
     f.render_widget(block, main);
     if let Some(slot) = app.stack.last_mut() {
+        slot.view.render(f, inner, &ctx);
+    }
+    if let Some(slot) = app.overlay.as_mut() {
+        let area = slot.view.overlay_size(f.area());
+        f.render_widget(Clear, area);
+        let block = Block::bordered()
+            .border_style(Style::new().fg(app.theme.border_focus))
+            .title(Line::from(Span::styled(
+                format!(" {} ", slot.view.title()),
+                app.theme.accent().add_modifier(Modifier::BOLD),
+            )))
+            .title(Line::from(Span::styled(format!(" {} ", slot.view.info(&ctx)), app.theme.muted())).right_aligned());
+        let inner = block.inner(area);
+        f.render_widget(block, area);
         slot.view.render(f, inner, &ctx);
     }
 
@@ -123,18 +139,32 @@ fn draw_prompt(f: &mut Frame, area: Rect, app: &App) {
 fn draw_status(f: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let mut left = Vec::new();
-    if let Some((running, waiting)) = app.task_counts {
+    if !app.tracked.is_empty() {
+        // Tasks started from pulply take precedence over server-wide counters.
+        left.push(Span::styled(" ⚙", theme.task_state("running")));
+        for t in &app.tracked {
+            let progress = match t.progress {
+                Some((done, total)) if total > 0 => format!(" {}%", done * 100 / total),
+                _ => String::new(),
+            };
+            left.push(Span::styled(format!(" {}{progress}", t.label), theme.task_state(&t.state)));
+            left.push(Span::styled(" ·", theme.muted()));
+        }
+        left.pop();
+    } else if let Some((running, waiting)) = app.task_counts {
         let style = if running + waiting > 0 { theme.task_state("running") } else { theme.muted() };
         left.push(Span::styled(
             format!(" ⚙ {running} {} · {waiting} {}", t!("status.running"), t!("status.waiting")),
             style,
         ));
     }
-    let [l, r] = Layout::horizontal([Constraint::Length(36), Constraint::Min(10)]).areas(area);
+    let notice_w = app.notice.as_ref().map_or(0, |n| (n.text.chars().count() as u16 + 1).min(area.width * 7 / 10));
+    let [l, r] = Layout::horizontal([Constraint::Min(0), Constraint::Length(notice_w)]).areas(area);
     f.render_widget(Paragraph::new(Line::from(left)), l);
     if let Some(n) = &app.notice {
         let style = match n.level {
             Level::Error => theme.error(),
+            Level::Success => theme.success(),
             Level::Info => theme.accent(),
         };
         f.render_widget(Paragraph::new(Line::styled(format!("{} ", n.text), style)).right_aligned(), r);

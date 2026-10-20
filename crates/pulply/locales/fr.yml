@@ -93,6 +93,12 @@ hint:
   quit: quitter
   command: commande
   help: aide
+  confirm: confirmer
+  choose: choisir
+  mark: marquer
+  cancel_task: annuler la tâche
+  delete: supprimer
+  close: fermer
 
 help:
   title: Aide
@@ -118,6 +124,23 @@ notice:
   unknown_context: "Contexte inconnu : %{name}"
   unknown_resource: "Ressource inconnue : %{name}"
   unsupported: "pulpcore %{version} est antérieur à 3.50 : certaines vues peuvent ne pas fonctionner"
+  readonly: "Mode lecture seule : les modifications sont désactivées"
+  done: "✔ %{label}"
+  task_completed: "✔ %{label} terminé"
+  task_failed: "✗ échec de %{label} : %{error}"
+  distribution_url: "Distribution disponible sur %{url}"
+
+confirm:
+  title: Confirmation
+  "yes": "Oui"
+  "no": "Non"
+  delete: "Supprimer %{what} ?"
+  cancel: "Annuler %{what} ?"
+
+action:
+  delete: "suppression de %{name}"
+  cancel: "annulation de %{name}"
+  n_resources: "%{count} ressources"
 
 connect:
   title: Connexion

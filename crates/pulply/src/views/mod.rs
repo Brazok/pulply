@@ -1,7 +1,9 @@
 //! Views stacked in the main area. Each view owns its state, declares what to
 //! fetch, and receives the result; the app runs fetches off the render loop.
 
+pub mod actions;
 pub mod columns;
+pub mod confirm;
 pub mod connect;
 pub mod contexts;
 pub mod dashboard;
@@ -16,7 +18,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use crossterm::event::KeyEvent;
 use futures::future::BoxFuture;
-use pulply_api::{Error, Page, PulpClient, Registry};
+use pulply_api::{Error, Method, Page, PulpClient, Registry};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use serde_json::Value;
@@ -32,6 +34,7 @@ pub type Fetch = BoxFuture<'static, Result<Payload, Error>>;
 pub enum Payload {
     Page(Page),
     Object(Value),
+    Count(u64),
     Dashboard(Box<dashboard::DashboardData>),
     Task { task: Value, children: Vec<Value> },
     Reachability(Vec<(String, Result<String, String>)>),
@@ -48,6 +51,7 @@ pub enum FetchKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
     Info,
+    Success,
     Error,
 }
 
@@ -68,6 +72,47 @@ impl Ctx<'_> {
     pub fn registry(&self) -> Option<&Registry> {
         self.session.and_then(|s| s.registry.as_deref())
     }
+    /// Mutations are disabled (`--readonly` or `readonly = true` on the context).
+    pub fn readonly(&self) -> bool {
+        self.client().is_none_or(PulpClient::readonly)
+    }
+}
+
+/// Follow-up once the task spawned by a mutation completes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AfterTask {
+    None,
+    /// Show the base URL of the distribution created or updated by the task.
+    ShowDistribution,
+}
+
+/// A modifying request. Task responses are tracked; other results notify and refresh.
+#[derive(Debug, Clone)]
+pub struct Mutation {
+    pub method: Method,
+    pub path: String,
+    pub body: Option<Value>,
+    /// Human description used in notifications and the task bar (`sync iso`).
+    pub label: String,
+    pub after: AfterTask,
+    /// Route the result to the emitting view's [`View::on_mutated`] (forms).
+    pub reply: bool,
+}
+
+impl Mutation {
+    pub fn new(method: Method, path: impl Into<String>, body: Option<Value>, label: impl Into<String>) -> Self {
+        Self { method, path: path.into(), body, label: label.into(), after: AfterTask::None, reply: false }
+    }
+
+    pub fn after(mut self, after: AfterTask) -> Self {
+        self.after = after;
+        self
+    }
+
+    pub fn reply(mut self) -> Self {
+        self.reply = true;
+        self
+    }
 }
 
 pub enum Outcome {
@@ -75,6 +120,10 @@ pub enum Outcome {
     Ignored,
     None,
     Push(Box<dyn View>),
+    Pop,
+    /// Modal view drawn above the stack (confirmations, task progress).
+    Overlay(Box<dyn View>),
+    CloseOverlay,
     Fetch(FetchKind),
     Open(Target),
     SwitchContext(String),
@@ -82,6 +131,22 @@ pub enum Outcome {
     Retry,
     /// Fetch display names for these hrefs.
     Resolve(Vec<String>),
+    Mutate(Mutation),
+    /// Hand a value to the view with this id (picker result for a form field).
+    Deliver {
+        view: u64,
+        key: String,
+        value: Value,
+    },
+    Notify(Level, String),
+    Batch(Vec<Outcome>),
+}
+
+impl Outcome {
+    /// Refusal shown when a mutation key is pressed in read-only mode.
+    pub fn readonly() -> Self {
+        Outcome::Notify(Level::Error, rust_i18n::t!("notice.readonly").into_owned())
+    }
 }
 
 pub struct Hint {
@@ -113,6 +178,14 @@ pub trait View: Send {
         false
     }
 
+    /// Called once when the view gets its slot id (needed to receive deliveries).
+    fn set_id(&mut self, _id: u64) {}
+
+    /// Area used when shown as an overlay (default: 80% × 75% of the screen).
+    fn overlay_size(&self, area: Rect) -> Rect {
+        confirm::centered(area, area.width * 4 / 5, area.height * 3 / 4)
+    }
+
     fn handle_key(&mut self, key: KeyEvent, ctx: &Ctx) -> Outcome;
 
     fn render(&mut self, f: &mut Frame, area: Rect, ctx: &Ctx);
@@ -123,6 +196,20 @@ pub trait View: Send {
 
     fn on_data(&mut self, _kind: FetchKind, _result: Result<Payload, Error>, _ctx: &Ctx) -> Outcome {
         Outcome::None
+    }
+
+    /// Result of a [`Mutation`] emitted with `reply`. Return `Ignored` to let the app
+    /// notify as for any other mutation.
+    fn on_mutated(&mut self, _result: &Result<Value, Error>) -> Outcome {
+        Outcome::Ignored
+    }
+
+    /// Value delivered by [`Outcome::Deliver`].
+    fn receive(&mut self, _key: &str, _value: Value) {}
+
+    /// Hrefs of the marked rows, or of the row under the cursor.
+    fn selection(&self) -> Vec<String> {
+        Vec::new()
     }
 
     /// Polling period while this view is on top; `None` disables polling.

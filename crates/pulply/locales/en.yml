@@ -93,6 +93,12 @@ hint:
   quit: quit
   command: command
   help: help
+  confirm: confirm
+  choose: choose
+  mark: mark
+  cancel_task: cancel task
+  delete: delete
+  close: close
 
 help:
   title: Help
@@ -118,6 +124,23 @@ notice:
   unknown_context: "Unknown context: %{name}"
   unknown_resource: "Unknown resource: %{name}"
   unsupported: "pulpcore %{version} is older than 3.50: some views may not work"
+  readonly: "Read-only mode: modifications are disabled"
+  done: "✔ %{label}"
+  task_completed: "✔ %{label} completed"
+  task_failed: "✗ %{label} failed: %{error}"
+  distribution_url: "Distribution available at %{url}"
+
+confirm:
+  title: Confirm
+  "yes": "Yes"
+  "no": "No"
+  delete: "Delete %{what}?"
+  cancel: "Cancel %{what}?"
+
+action:
+  delete: "delete %{name}"
+  cancel: "cancel %{name}"
+  n_resources: "%{count} resources"
 
 connect:
   title: Connection
