@@ -16,9 +16,12 @@ impl NameCache {
         self.0.insert(key.into(), name.into());
     }
 
-    /// Records `pulp_href`/`prn` → `name` (or `username`) for a resource.
+    /// Records `pulp_href`/`prn` → `name` (or `username`, or `relative_path` for file-like content).
     pub fn learn(&mut self, item: &Value) {
-        let Some(name) = item.name().or_else(|| item.str_field("username")) else { return };
+        let Some(name) = item.name().or_else(|| item.str_field("username")).or_else(|| item.str_field("relative_path"))
+        else {
+            return;
+        };
         for key in [item.href(), item.str_field("prn")].into_iter().flatten() {
             self.insert(key, name);
         }

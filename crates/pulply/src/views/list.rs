@@ -66,8 +66,17 @@ pub struct ListView {
     marked: HashSet<String>,
     /// Own resource type (create form, actions).
     type_id: Option<String>,
-    /// Picker mode: Enter hands the selected href to a form field instead of opening it.
-    pick: Option<(u64, String)>,
+    /// Picker mode: Enter returns the selection instead of opening it.
+    pick: Option<Pick>,
+}
+
+enum Pick {
+    /// Href for a form field.
+    Field { form: u64, key: String },
+    /// Content units (Space marks several) to add to `repo`.
+    Content { repo: String, base_version: Option<String> },
+    /// Repository receiving `units`.
+    Repository { units: Vec<String> },
 }
 
 impl ListView {
@@ -120,8 +129,68 @@ impl ListView {
     pub fn picker(t: &ResourceType, reg: &Registry, form: u64, field: &str) -> Self {
         let title = t!("list.pick", what = field).into_owned();
         let mut list = Self::for_type(t, reg, Some(title));
-        list.pick = Some((form, field.to_owned()));
+        list.pick = Some(Pick::Field { form, key: field.to_owned() });
         list
+    }
+
+    /// Version context of a content list opened from a version (`?repository_version=`).
+    fn version_context(&self) -> Option<(&str, &str)> {
+        let version = self.base_query.iter().find(|(k, _)| k == "repository_version").map(|(_, v)| v.as_str())?;
+        Some((version, pulply_api::models::version_repository(version)?))
+    }
+
+    /// `a`: in a version's content, pick units of the same type to add; in a plain
+    /// content list, pick the repository receiving the marked units.
+    fn add_content(&self, ctx: &Ctx) -> Outcome {
+        let (Some(reg), Some(t)) = (ctx.registry(), self.own_type(ctx)) else { return Outcome::None };
+        if let Some((version, repo)) = self.version_context() {
+            let title = t!("list.pick_content", repo = format::href(repo, ctx.names)).into_owned();
+            let mut list = Self::for_type(t, reg, Some(title));
+            list.pick = Some(Pick::Content { repo: repo.to_owned(), base_version: Some(version.to_owned()) });
+            return Outcome::Push(Box::new(list));
+        }
+        let Some(repo_type) = actions::repository_type_for(t, reg) else { return Outcome::None };
+        let units = self.selection();
+        if units.is_empty() {
+            return Outcome::None;
+        }
+        let title = t!("list.pick_repository", count = units.len()).into_owned();
+        let mut list = Self::for_type(repo_type, reg, Some(title));
+        list.pick = Some(Pick::Repository { units });
+        Outcome::Push(Box::new(list))
+    }
+
+    fn pick_key(&mut self, key: KeyEvent, ctx: &Ctx) -> Outcome {
+        let Some(pick) = &self.pick else { return Outcome::Ignored };
+        match key.code {
+            KeyCode::Enter => {
+                let Some(href) = self.selected().and_then(|r| r.href()).map(str::to_owned) else {
+                    return Outcome::None;
+                };
+                let result = match pick {
+                    Pick::Field { form, key } => {
+                        Outcome::Deliver { view: *form, key: key.clone(), value: Value::from(href) }
+                    }
+                    Pick::Content { repo, base_version } => {
+                        actions::add_content(repo, base_version.as_deref(), self.selection(), ctx)
+                    }
+                    Pick::Repository { units } => actions::add_content(&href, None, units.clone(), ctx),
+                };
+                Outcome::Batch(vec![Outcome::Pop, result])
+            }
+            KeyCode::Char(' ') if matches!(pick, Pick::Content { .. }) => self.toggle_mark(),
+            KeyCode::Esc if !self.filter.is_empty() => self.set_filter("", true),
+            _ => Outcome::Ignored,
+        }
+    }
+
+    fn toggle_mark(&mut self) -> Outcome {
+        if let Some(href) = self.selected().and_then(|r| r.href()).map(str::to_owned)
+            && !self.marked.remove(&href)
+        {
+            self.marked.insert(href);
+        }
+        self.move_cursor(KeyEvent::from(KeyCode::Down)).unwrap_or(Outcome::None)
     }
 
     pub fn for_type(t: &ResourceType, reg: &Registry, title: Option<String>) -> Self {
@@ -371,12 +440,13 @@ impl View for ListView {
     }
 
     fn hints(&self, ctx: &Ctx) -> Vec<Hint> {
-        if self.pick.is_some() {
-            return vec![
-                Hint::new("↵", t!("hint.select")),
-                Hint::new("/", t!("hint.filter")),
-                Hint::new("esc", t!("hint.cancel")),
-            ];
+        if let Some(pick) = &self.pick {
+            let mut h = vec![Hint::new("↵", t!("hint.select"))];
+            if matches!(pick, Pick::Content { .. }) {
+                h.push(Hint::new("space", t!("hint.mark")));
+            }
+            h.extend([Hint::new("/", t!("hint.filter")), Hint::new("esc", t!("hint.cancel"))]);
+            return h;
         }
         let mut h = vec![
             Hint::new("↵", t!("hint.open")),
@@ -405,6 +475,18 @@ impl View for ListView {
                     h.push(Hint::new("D", t!("hint.distribute")));
                 }
             }
+            if let Some(href) = self.selected().and_then(|r| r.href())
+                && pulply_api::models::version_number(href).is_some()
+                && pulply_api::models::version_repository(href).is_some_and(|r| actions::can_modify(r, ctx))
+            {
+                h.push(Hint::new("R", t!("hint.rollback")));
+            }
+            if self.own_type(ctx).is_some_and(|t| t.category == "content") {
+                h.push(Hint::new("a", t!("hint.add_content")));
+                if self.version_context().is_some() {
+                    h.push(Hint::new("r", t!("hint.remove_content")));
+                }
+            }
             h.push(Hint::new("space", t!("hint.mark")));
             if self.kind == Kind::Tasks {
                 h.push(Hint::new("ctrl-k", t!("hint.cancel_task")));
@@ -421,18 +503,8 @@ impl View for ListView {
             return o;
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        if let Some((form, field)) = &self.pick {
-            return match key.code {
-                KeyCode::Enter => match self.selected().and_then(|r| r.href()) {
-                    Some(href) => Outcome::Batch(vec![
-                        Outcome::Pop,
-                        Outcome::Deliver { view: *form, key: field.clone(), value: Value::from(href) },
-                    ]),
-                    None => Outcome::None,
-                },
-                KeyCode::Esc if !self.filter.is_empty() => self.set_filter("", true),
-                _ => Outcome::Ignored,
-            };
+        if self.pick.is_some() {
+            return self.pick_key(key, ctx);
         }
         let mutating = matches!(key.code, KeyCode::Char('c' | 'u' | 'e' | ' '))
             || (ctrl && matches!(key.code, KeyCode::Char('d' | 'k')));
@@ -488,14 +560,26 @@ impl View for ListView {
                     .unwrap_or_else(|| format::href(href, ctx.names));
                 actions::distribute(href, &name, ctx)
             }
-            KeyCode::Char(' ') => {
-                if let Some(href) = self.selected().and_then(|r| r.href()).map(str::to_owned)
-                    && !self.marked.remove(&href)
-                {
-                    self.marked.insert(href);
-                }
-                self.move_cursor(KeyEvent::from(KeyCode::Down)).unwrap_or(Outcome::None)
+            KeyCode::Char('R')
+                if self.selected().and_then(|r| r.href()).is_some_and(|h| {
+                    pulply_api::models::version_number(h).is_some()
+                        && pulply_api::models::version_repository(h).is_some_and(|r| actions::can_modify(r, ctx))
+                }) =>
+            {
+                self.selected().and_then(|r| r.href()).map_or(Outcome::None, |h| actions::rollback(h, ctx))
             }
+            KeyCode::Char('a') if self.own_type(ctx).is_some_and(|t| t.category == "content") => {
+                if ctx.readonly() {
+                    Outcome::readonly()
+                } else {
+                    self.add_content(ctx)
+                }
+            }
+            KeyCode::Char('r') => match self.version_context() {
+                Some((version, repo)) => actions::remove_content(repo, version, self.selection(), ctx),
+                None => Outcome::Ignored,
+            },
+            KeyCode::Char(' ') => self.toggle_mark(),
             KeyCode::Char('d') if ctrl && self.kind != Kind::Tasks && self.can_delete(ctx) => {
                 actions::delete(self.selection(), ctx, false)
             }

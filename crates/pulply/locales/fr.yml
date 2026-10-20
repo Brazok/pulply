@@ -71,6 +71,8 @@ list:
   empty: Aucune ressource.
   state: état
   pick: "Choisir %{what}"
+  pick_content: "Ajouter du contenu à %{repo}"
+  pick_repository: "Ajouter %{count} unités au dépôt…"
 
 hint:
   open: ouvrir

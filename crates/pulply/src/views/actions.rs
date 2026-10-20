@@ -212,3 +212,60 @@ pub fn distribute(href: &str, name: &str, ctx: &Ctx) -> Outcome {
             .with_after(AfterTask::ShowDistribution)
     }))
 }
+
+/// The repository supports `modify/` (add/remove content, rollback).
+pub fn can_modify(repo: &str, ctx: &Ctx) -> bool {
+    ctx.registry().and_then(|r| r.type_for_href(repo)).is_some_and(|t| t.has_action("modify"))
+}
+
+fn modify(repo: &str, body: Value, label: String) -> Mutation {
+    Mutation::new(Method::POST, format!("{repo}modify/"), Some(body), label)
+}
+
+/// Rollback (R8.5): new latest version with the content of `version`.
+pub fn rollback(version: &str, ctx: &Ctx) -> Outcome {
+    if ctx.readonly() {
+        return Outcome::readonly();
+    }
+    let Some(repo) = pulply_api::models::version_repository(version) else { return Outcome::None };
+    let (repo_name, version_name) = (format::href(repo, ctx.names), format::href(version, ctx.names));
+    let mutation =
+        modify(repo, json!({"base_version": version}), t!("action.rollback", name = version_name).into_owned());
+    confirm(t!("confirm.rollback", repo = repo_name, version = version_name), Outcome::Mutate(mutation))
+}
+
+/// Confirmed removal of content units, based on `version` (R8.4).
+pub fn remove_content(repo: &str, version: &str, units: Vec<String>, ctx: &Ctx) -> Outcome {
+    if units.is_empty() {
+        return Outcome::None;
+    }
+    if ctx.readonly() {
+        return Outcome::readonly();
+    }
+    let repo_name = format::href(repo, ctx.names);
+    let label = t!("action.remove_content", count = units.len(), name = repo_name).into_owned();
+    let what = describe(&units, ctx);
+    let mutation = modify(repo, json!({"remove_content_units": units, "base_version": version}), label);
+    confirm(t!("confirm.remove_content", what = what, repo = repo_name), Outcome::Mutate(mutation))
+}
+
+/// Adds content units to `repo`, on top of `base_version` or the latest version (R8.4).
+pub fn add_content(repo: &str, base_version: Option<&str>, units: Vec<String>, ctx: &Ctx) -> Outcome {
+    if units.is_empty() {
+        return Outcome::None;
+    }
+    if ctx.readonly() {
+        return Outcome::readonly();
+    }
+    let label = t!("action.add_content", count = units.len(), name = format::href(repo, ctx.names)).into_owned();
+    let mut body = json!({"add_content_units": units});
+    if let Some(v) = base_version {
+        body["base_version"] = Value::from(v);
+    }
+    Outcome::Mutate(modify(repo, body, label))
+}
+
+/// Repository type receiving content of `content_type`'s plugin.
+pub fn repository_type_for<'a>(content_type: &ResourceType, reg: &'a Registry) -> Option<&'a ResourceType> {
+    plugin_type(reg, "repositories", &content_type.plugin).filter(|t| t.has_action("modify"))
+}
