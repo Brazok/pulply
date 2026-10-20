@@ -6,7 +6,8 @@ Terminal UI to observe and manage [Pulp 3](https://pulpproject.org) servers, in 
 Every resource type exposed by the server (all installed plugins) is discovered from its OpenAPI
 schema and browsable from the sidebar or the `:` command line.
 
-Status: milestone M1 (read/observe). See [`docs/spec/`](docs/spec/) for requirements, design and roadmap.
+Status: milestones M1 (observe) and M2 (create/edit/delete, workflows) done. See [`docs/spec/`](docs/spec/)
+for requirements, design and roadmap.
 
 ## Build
 
@@ -48,19 +49,37 @@ Logs go to `$XDG_STATE_HOME/pulply/pulply.<date>.log`.
 
 ## Keys
 
+Browse:
+
 | Key | Action |
 |---|---|
 | `:` | command mode (`:repo rpm`, `:content container/tags`, `:dist`, `:task`, `:ctx`, `:q`); `Tab` completes |
 | `/` | filter rows; `-q <expr>` and `-f key=value` are sent to the API |
 | `Enter` / `Esc` | drill down (repository → versions → content) / back |
 | `d` | describe (follow hrefs with `Enter`) |
-| `Shift`+letter | sort by the column starting with that letter |
+| `Shift`+letter | sort by the column starting with that letter (unless bound to an action below) |
 | `f` | cycle task state filter (task list) |
 | `Tab` / `Ctrl-B` | focus / toggle sidebar |
 | `Ctrl-R` / `p` | refresh now / pause polling |
 | `[` / `]` | history back / forward |
 | `?` | help |
 | `q` / `Ctrl-C` | quit |
+
+Manage (hidden and refused with `--readonly` or `readonly = true`):
+
+| Key | Action |
+|---|---|
+| `c` / `u` | create / edit with a form generated from the server schema (`Ctrl-S` submits) |
+| `e` | edit as YAML in `$VISUAL`/`$EDITOR` (changed fields are PATCHed) |
+| `Space` / `Ctrl-D` | mark rows / delete marked rows (or the current one), after confirmation |
+| `s` / `P` / `D` | sync / publish / distribute a repository (`P`, `D` also on versions and publications) |
+| `R` | rollback: new version with the content of the selected version |
+| `a` / `r` | add content (from a version's content, or marked content to a chosen repository) / remove marked content |
+| `Ctrl-K` | cancel task |
+| `:purge` `:orphans` `:reclaim` `:repair` | global operations, after confirmation |
+
+Tasks started from pulply open a progress window (`Esc` detaches it), are followed in the status
+bar and notify on completion; a distribution's URL is shown once created.
 
 ## Development
 

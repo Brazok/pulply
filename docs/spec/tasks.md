@@ -25,15 +25,15 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 ## M2 — CRUD + workflows
 
-- [ ] `FormSchema` + `FormView` (types, enums, requis, writeOnly, sélecteur de relations, erreurs par champ) — R7.1–R7.4, R7.7
-- [ ] Édition `$EDITOR` YAML + diff + PATCH — R7.5
-- [ ] Delete avec multi-sélection + `ConfirmModal` — R7.6, R13.2
-- [ ] `TaskTracker` + `TaskModal` détachable + notifications — R6.3, R6.4
-- [ ] Cancel et purge de tâches — R6.5, R6.6
-- [ ] Sync, publish, distribute (URL affichée) — R8.1–R8.3
-- [ ] Modify (ajout / retrait), rollback, suppression de version — R8.4–R8.6
-- [ ] Orphan cleanup, reclaim, repair — R8.7–R8.9
-- [ ] Masquage des actions en readonly (tests snapshot) — R13.1
+- [x] `FormView` généré depuis l'OpenAPI (types, enums, requis, writeOnly, sélecteur de relations, erreurs par champ, PATCH des seuls champs modifiés) — R7.1–R7.4, R7.7
+- [x] Édition `$EDITOR` YAML + diff + PATCH, réouverture avec l'erreur en commentaire — R7.5
+- [x] Delete avec multi-sélection (`Espace`) + `ConfirmView` (Non par défaut) — R7.6, R13.2
+- [x] Suivi des tâches lancées (barre de statut, 1 s) + modal de progression détachable + notifications — R6.3, R6.4
+- [x] Cancel (`Ctrl-K`) et purge (`:purge`) de tâches — R6.5, R6.6
+- [x] Sync (`s`), publish (`P`), distribute (`D`, URL affichée en fin de tâche) ; mise à jour d'une distribution via `u`/`e` — R8.1–R8.3
+- [x] Modify (`a` ajout depuis le contenu d'une version ou vers un dépôt choisi, `r` retrait), rollback (`R`), suppression de version — R8.4–R8.6
+- [x] `:orphans` (estimation du nombre d'orphelins), `:reclaim` (pré-rempli avec la sélection), `:repair` — R8.7–R8.9
+- [x] Masquage des actions en readonly (test unitaire sur les raccourcis + refus des touches) — R13.1
 
 **Acceptation M2** : scénario file complet (remote → repo → sync → publish → distribute → modify → rollback → delete) réalisé uniquement dans pulply ; en `--readonly`, aucune requête mutante émise (vérifié par wiremock).
 
