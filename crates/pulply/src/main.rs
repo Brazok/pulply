@@ -1,3 +1,5 @@
+mod config;
+
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::widgets::Paragraph;
 
