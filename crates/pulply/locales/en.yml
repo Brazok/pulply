@@ -166,6 +166,25 @@ form:
   submitting: Submitting…
   submit_help: "Enter or Ctrl-S to submit"
 
+op:
+  purge:
+    title: Purge finished tasks
+    label: purge tasks
+    confirm: "Permanently delete the finished tasks matching these criteria?"
+  orphans:
+    title: Orphan cleanup
+    label: orphan cleanup
+    confirm: "Delete orphaned content and artifacts? This cannot be undone."
+    count: "≈ %{count} content units are orphaned right now"
+  reclaim:
+    title: Reclaim disk space
+    label: reclaim space
+    confirm: "Remove the artifacts of these repositories (content becomes on-demand)?"
+  repair:
+    title: Repair storage
+    label: repair
+    confirm: "Check every artifact and re-download missing or corrupted files?"
+
 editor:
   help: "Save to apply changed fields (PATCH). Empty the file to cancel."
   error: ERROR

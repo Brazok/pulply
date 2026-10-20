@@ -327,7 +327,7 @@ impl FormView {
         }
         let mutation = Mutation::new(self.method.clone(), self.path.clone(), Some(body), self.label.clone())
             .after(self.after.clone())
-            .reply();
+            .reply_to(self.id);
         self.submitting = true;
         match &self.confirm {
             Some(msg) => {

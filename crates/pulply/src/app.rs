@@ -25,6 +25,7 @@ use crate::session::{self, Session};
 use crate::theme::Theme;
 use crate::ui;
 use crate::ui::sidebar::{self, Sidebar};
+use crate::views::actions;
 use crate::views::connect::{ConnectView, State as ConnectState};
 use crate::views::contexts::ContextView;
 use crate::views::dashboard::DashboardView;
@@ -107,7 +108,7 @@ enum Msg {
     Data { generation: u64, view: u64, kind: FetchKind, result: Result<Payload, Error> },
     Names { generation: u64, entries: Vec<(String, String)> },
     TaskCounts { generation: u64, running: u64, waiting: u64 },
-    Mutated { generation: u64, view: u64, mutation: Mutation, result: Result<Value, Error> },
+    Mutated { generation: u64, mutation: Mutation, result: Result<Value, Error> },
     Tracked { generation: u64, results: Vec<(String, Result<Value, Error>)> },
     Notice { generation: u64, level: Level, text: String },
 }
@@ -263,7 +264,7 @@ impl App {
             Ok(EditOutcome::Applied(body)) => {
                 let label = t!("action.update", name = name).into_owned();
                 let mutation = Mutation::new(pulply_api::Method::PATCH, href, None, label);
-                self.on_mutated(0, mutation, Ok(body));
+                self.on_mutated(mutation, Ok(body));
             }
             Ok(EditOutcome::Unchanged) => self.notify(Level::Info, t!("form.no_changes").into_owned()),
             Ok(EditOutcome::Cancelled) => self.notify(Level::Info, t!("editor.cancelled").into_owned()),
@@ -387,8 +388,8 @@ impl App {
                 self.counts_inflight = false;
                 self.task_counts = Some((running, waiting));
             }
-            Msg::Mutated { generation, view, mutation, result } if generation == self.generation => {
-                self.on_mutated(view, mutation, result);
+            Msg::Mutated { generation, mutation, result } if generation == self.generation => {
+                self.on_mutated(mutation, result);
             }
             Msg::Tracked { generation, results } if generation == self.generation => self.on_tracked(results),
             Msg::Notice { generation, level, text } if generation == self.generation => self.notify(level, text),
@@ -433,23 +434,23 @@ impl App {
 
     // ------------------------------------------------------------ mutations
 
-    fn mutate(&mut self, mutation: Mutation, view: u64) {
+    fn mutate(&mut self, mutation: Mutation) {
         let Some(s) = &self.session else { return };
         if s.client.readonly() {
-            self.apply(Outcome::readonly(), view);
+            self.notify(Level::Error, t!("notice.readonly").into_owned());
             return;
         }
         let (client, generation) = (s.client.clone(), self.generation);
         tracing::info!(method = %mutation.method, path = mutation.path, "mutation");
         self.spawn(async move {
             let result = client.mutate(mutation.method.clone(), &mutation.path, mutation.body.as_ref()).await;
-            Msg::Mutated { generation, view, mutation, result }
+            Msg::Mutated { generation, mutation, result }
         });
     }
 
-    fn on_mutated(&mut self, view: u64, mutation: Mutation, result: Result<Value, Error>) {
+    fn on_mutated(&mut self, mutation: Mutation, result: Result<Value, Error>) {
         let mut handled = false;
-        if mutation.reply
+        if let Some(view) = mutation.reply_to
             && let Some(slot) = find_slot(&mut self.stack, &mut self.overlay, view)
         {
             let outcome = slot.view.on_mutated(&result);
@@ -749,6 +750,22 @@ impl App {
             Target::Context(name) => self.start_connect(name),
             Target::Help => self.help = true,
             Target::Quit => self.quit = true,
+            Target::Operation(op) => {
+                let Some(s) = &self.session else { return };
+                if s.client.readonly() {
+                    self.notify(Level::Error, t!("notice.readonly").into_owned());
+                    return;
+                }
+                let Some(reg) = s.registry.clone() else {
+                    self.notify(Level::Info, t!("notice.schema_loading").into_owned());
+                    return;
+                };
+                let selection = self.stack.last().map(|slot| slot.view.selection()).unwrap_or_default();
+                match actions::operation(op, &reg, &s.client, selection) {
+                    Some(form) => self.push(Box::new(form)),
+                    None => self.notify(Level::Error, t!("notice.unknown_resource", name = op.rel_path()).into_owned()),
+                }
+            }
             Target::RefreshSchema => {
                 self.notify(Level::Info, t!("notice.schema_reload").into_owned());
                 self.load_registry(true);
@@ -808,7 +825,7 @@ impl App {
             }
             Outcome::Retry => self.start_connect(self.ctx_name.clone()),
             Outcome::Resolve(hrefs) => self.resolve(hrefs),
-            Outcome::Mutate(m) => self.mutate(m, view_id),
+            Outcome::Mutate(m) => self.mutate(m),
             Outcome::Deliver { view, key, value } => {
                 if let Some(slot) = find_slot(&mut self.stack, &mut self.overlay, view) {
                     slot.view.receive(&key, value);

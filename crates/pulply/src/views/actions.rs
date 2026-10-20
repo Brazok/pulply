@@ -1,13 +1,16 @@
 //! Builders for modifying workflows: each returns the [`Outcome`] to apply
 //! (usually a confirmation overlay wrapping one or more mutations).
 
-use pulply_api::Method;
+use pulply_api::{Method, PulpClient, Registry};
 use rust_i18n::t;
 use serde_json::json;
 
 use super::confirm::confirm;
+use super::form::FormView;
 use super::{Ctx, Mutation, Outcome};
+use crate::commands::Op;
 use crate::format;
+use crate::labels::tr;
 
 fn describe(hrefs: &[String], ctx: &Ctx) -> String {
     match hrefs {
@@ -55,4 +58,35 @@ pub fn cancel_tasks(hrefs: Vec<String>, ctx: &Ctx) -> Outcome {
         })
         .collect();
     confirm(t!("confirm.cancel", what = describe(&hrefs, ctx)), Outcome::Batch(mutations))
+}
+
+/// Confirmed form for a global operation. `selection` (hrefs of the current view)
+/// pre-fills the repositories to reclaim.
+pub fn operation(op: Op, reg: &Registry, client: &PulpClient, selection: Vec<String>) -> Option<FormView> {
+    let operation = reg.operation(op.rel_path())?;
+    let schema = operation.body_schema.as_deref().and_then(|s| reg.schema(s));
+    let key = op.key();
+    let mut form = FormView::action(
+        tr(&format!("op.{key}.title")),
+        tr(&format!("op.{key}.label")),
+        operation.path.clone(),
+        schema,
+        reg,
+        "core",
+    )
+    .with_confirm(tr(&format!("op.{key}.confirm")));
+    match op {
+        Op::Orphans => {
+            let query = vec![("orphaned_for".to_owned(), "0".to_owned())];
+            form = form.with_count(client.api_path("content/"), query, "op.orphans.count");
+        }
+        Op::Reclaim => {
+            let repos: Vec<String> = selection.into_iter().filter(|h| h.contains("/repositories/")).collect();
+            if !repos.is_empty() {
+                form = form.with_values(&[("repo_hrefs", repos.join(", "))]);
+            }
+        }
+        Op::Purge | Op::Repair => {}
+    }
+    Some(form)
 }

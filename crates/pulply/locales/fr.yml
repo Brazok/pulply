@@ -166,6 +166,25 @@ form:
   submitting: Envoi…
   submit_help: "Entrée ou Ctrl-S pour valider"
 
+op:
+  purge:
+    title: Purger les tâches terminées
+    label: purge des tâches
+    confirm: "Supprimer définitivement les tâches terminées correspondant à ces critères ?"
+  orphans:
+    title: Nettoyage des orphelins
+    label: nettoyage des orphelins
+    confirm: "Supprimer le contenu et les artefacts orphelins ? Opération irréversible."
+    count: "≈ %{count} unités de contenu sont actuellement orphelines"
+  reclaim:
+    title: Récupérer l'espace disque
+    label: récupération d'espace
+    confirm: "Supprimer les artefacts de ces dépôts (le contenu passe en on-demand) ?"
+  repair:
+    title: Réparer le stockage
+    label: réparation
+    confirm: "Vérifier chaque artefact et retélécharger les fichiers manquants ou corrompus ?"
+
 editor:
   help: "Enregistrer pour appliquer les champs modifiés (PATCH). Vider le fichier pour annuler."
   error: ERREUR

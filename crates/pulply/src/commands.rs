@@ -12,6 +12,38 @@ pub enum Target {
     Help,
     Quit,
     RefreshSchema,
+    /// Global operation form (`tasks/purge/`, `orphans/cleanup/`, `repositories/reclaim_space/`, `repair/`).
+    Operation(Op),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Op {
+    Purge,
+    Orphans,
+    Reclaim,
+    Repair,
+}
+
+impl Op {
+    /// Path relative to the API prefix.
+    pub fn rel_path(self) -> &'static str {
+        match self {
+            Op::Purge => "tasks/purge/",
+            Op::Orphans => "orphans/cleanup/",
+            Op::Reclaim => "repositories/reclaim_space/",
+            Op::Repair => "repair/",
+        }
+    }
+
+    /// Locale key suffix (`op.<key>.title`, `op.<key>.confirm`).
+    pub fn key(self) -> &'static str {
+        match self {
+            Op::Purge => "purge",
+            Op::Orphans => "orphans",
+            Op::Reclaim => "reclaim",
+            Op::Repair => "repair",
+        }
+    }
 }
 
 /// (canonical category/core id, aliases; the first alias is used for completion).
@@ -41,7 +73,8 @@ const ALIASES: &[(&str, &[&str])] = &[
     ("repository_versions", &["version", "versions", "rv"]),
 ];
 
-const BUILTINS: &[&str] = &["dashboard", "ctx", "help", "quit", "refresh-schema"];
+const BUILTINS: &[&str] =
+    &["dashboard", "ctx", "help", "quit", "refresh-schema", "purge", "orphans", "reclaim", "repair"];
 
 fn canonical(word: &str) -> Option<&'static str> {
     ALIASES.iter().find(|(_, al)| al.contains(&word)).map(|(c, _)| *c)
@@ -64,6 +97,10 @@ pub fn parse(input: &str, reg: Option<&Registry>) -> Result<Target, String> {
         "q" | "q!" | "quit" | "exit" => return Ok(Target::Quit),
         "help" | "?" => return Ok(Target::Help),
         "refresh-schema" => return Ok(Target::RefreshSchema),
+        "purge" | "task-purge" => return Ok(Target::Operation(Op::Purge)),
+        "orphans" | "orphan" => return Ok(Target::Operation(Op::Orphans)),
+        "reclaim" => return Ok(Target::Operation(Op::Reclaim)),
+        "repair" => return Ok(Target::Operation(Op::Repair)),
         _ => {}
     }
     let Some(reg) = reg else { return Err(format!("schema not loaded yet: {input}")) };
@@ -168,6 +205,8 @@ mod tests {
         assert_eq!(parse("ctx", None), Ok(Target::Contexts));
         assert_eq!(parse("q", None), Ok(Target::Quit));
         assert!(parse("repo", None).is_err());
+        assert_eq!(parse("orphan", None), Ok(Target::Operation(Op::Orphans)));
+        assert_eq!(parse("task-purge", None), Ok(Target::Operation(Op::Purge)));
     }
 
     #[test]

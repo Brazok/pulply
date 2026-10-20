@@ -96,13 +96,14 @@ pub struct Mutation {
     /// Human description used in notifications and the task bar (`sync iso`).
     pub label: String,
     pub after: AfterTask,
-    /// Route the result to the emitting view's [`View::on_mutated`] (forms).
-    pub reply: bool,
+    /// View whose [`View::on_mutated`] receives the result (the form that submitted it).
+    /// Explicit because the mutation may be applied from another layer (confirmation overlay).
+    pub reply_to: Option<u64>,
 }
 
 impl Mutation {
     pub fn new(method: Method, path: impl Into<String>, body: Option<Value>, label: impl Into<String>) -> Self {
-        Self { method, path: path.into(), body, label: label.into(), after: AfterTask::None, reply: false }
+        Self { method, path: path.into(), body, label: label.into(), after: AfterTask::None, reply_to: None }
     }
 
     pub fn after(mut self, after: AfterTask) -> Self {
@@ -110,8 +111,8 @@ impl Mutation {
         self
     }
 
-    pub fn reply(mut self) -> Self {
-        self.reply = true;
+    pub fn reply_to(mut self, view: u64) -> Self {
+        self.reply_to = Some(view);
         self
     }
 }
