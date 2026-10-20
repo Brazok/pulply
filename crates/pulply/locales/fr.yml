@@ -70,6 +70,7 @@ list:
   loading: Chargement…
   empty: Aucune ressource.
   state: état
+  pick: "Choisir %{what}"
 
 hint:
   open: ouvrir
@@ -99,6 +100,12 @@ hint:
   cancel_task: annuler la tâche
   delete: supprimer
   close: fermer
+  select: sélectionner
+  cancel: annuler
+  create: créer
+  edit: modifier
+  field: champ
+  clear: effacer
 
 help:
   title: Aide
@@ -141,6 +148,22 @@ action:
   delete: "suppression de %{name}"
   cancel: "annulation de %{name}"
   n_resources: "%{count} ressources"
+  create: "création de %{name}"
+  update: "modification de %{name}"
+
+form:
+  create: "Nouveau · %{what}"
+  edit: "Modifier · %{what}"
+  required: obligatoire
+  not_integer: entier attendu
+  not_number: nombre attendu
+  bad_json: "JSON invalide : %{error}"
+  no_changes: Aucune modification
+  default: défaut
+  pick: choisir
+  submit: Valider
+  submitting: Envoi…
+  submit_help: "Entrée ou Ctrl-S pour valider"
 
 connect:
   title: Connexion

@@ -12,9 +12,15 @@ pub fn titleize(id: &str) -> String {
         None => String::new(),
     }
 }
+
 /// Translation of a runtime-built key (`t!` borrows its key, so it cannot take a temporary).
 pub fn tr(key: &str) -> String {
     t!(key).into_owned()
+}
+
+/// [`tr`] with a `%{count}` argument.
+pub fn tr_count(key: &str, count: u64) -> String {
+    t!(key, count = count).into_owned()
 }
 
 /// Translated label of a category or core resource id, falling back to [`titleize`].

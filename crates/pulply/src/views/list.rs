@@ -15,7 +15,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::columns::{self, Column, SortValue};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, summary, task};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, form, summary, task};
 use crate::format;
 use crate::labels;
 
@@ -64,6 +64,10 @@ pub struct ListView {
     requested: HashSet<String>,
     /// Rows marked with Space for bulk actions.
     marked: HashSet<String>,
+    /// Own resource type (create form, actions).
+    type_id: Option<String>,
+    /// Picker mode: Enter hands the selected href to a form field instead of opening it.
+    pick: Option<(u64, String)>,
 }
 
 impl ListView {
@@ -107,7 +111,17 @@ impl ListView {
             keep_href: None,
             requested: HashSet::new(),
             marked: HashSet::new(),
+            type_id: t.map(|t| t.id.clone()),
+            pick: None,
         }
+    }
+
+    /// Picker for a form's href field: Enter returns the selected row's href.
+    pub fn picker(t: &ResourceType, reg: &Registry, form: u64, field: &str) -> Self {
+        let title = t!("list.pick", what = field).into_owned();
+        let mut list = Self::for_type(t, reg, Some(title));
+        list.pick = Some((form, field.to_owned()));
+        list
     }
 
     pub fn for_type(t: &ResourceType, reg: &Registry, title: Option<String>) -> Self {
@@ -255,10 +269,18 @@ impl ListView {
         }
     }
 
+    fn own_type<'a>(&self, ctx: &'a Ctx) -> Option<&'a ResourceType> {
+        ctx.registry()?.get(self.type_id.as_deref()?)
+    }
+
+    /// Type of the resource under the cursor (differs from `own_type` in cross-plugin lists).
+    fn selected_type<'a>(&self, ctx: &'a Ctx) -> Option<&'a ResourceType> {
+        ctx.registry()?.type_for_href(self.selected()?.href()?)
+    }
+
     /// The resource under the cursor supports DELETE.
     fn can_delete(&self, ctx: &Ctx) -> bool {
-        let Some(reg) = ctx.registry() else { return false };
-        self.selected().and_then(|r| r.href()).and_then(|h| reg.type_for_href(h)).is_some_and(|t| t.ops.delete)
+        self.selected_type(ctx).is_some_and(|t| t.ops.delete)
     }
 
     fn has_running_tasks(&self) -> bool {
@@ -349,6 +371,13 @@ impl View for ListView {
     }
 
     fn hints(&self, ctx: &Ctx) -> Vec<Hint> {
+        if self.pick.is_some() {
+            return vec![
+                Hint::new("↵", t!("hint.select")),
+                Hint::new("/", t!("hint.filter")),
+                Hint::new("esc", t!("hint.cancel")),
+            ];
+        }
         let mut h = vec![
             Hint::new("↵", t!("hint.open")),
             Hint::new("d", t!("hint.describe")),
@@ -358,6 +387,12 @@ impl View for ListView {
             h.push(Hint::new("f", t!("hint.task_state")));
         }
         if !ctx.readonly() {
+            if self.own_type(ctx).is_some_and(|t| t.ops.create) {
+                h.push(Hint::new("c", t!("hint.create")));
+            }
+            if self.selected_type(ctx).is_some_and(|t| t.ops.partial_update) {
+                h.push(Hint::new("u", t!("hint.edit")));
+            }
             h.push(Hint::new("space", t!("hint.mark")));
             if self.kind == Kind::Tasks {
                 h.push(Hint::new("ctrl-k", t!("hint.cancel_task")));
@@ -374,12 +409,48 @@ impl View for ListView {
             return o;
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        if let Some((form, field)) = &self.pick {
+            return match key.code {
+                KeyCode::Enter => match self.selected().and_then(|r| r.href()) {
+                    Some(href) => Outcome::Batch(vec![
+                        Outcome::Pop,
+                        Outcome::Deliver { view: *form, key: field.clone(), value: Value::from(href) },
+                    ]),
+                    None => Outcome::None,
+                },
+                KeyCode::Esc if !self.filter.is_empty() => self.set_filter("", true),
+                _ => Outcome::Ignored,
+            };
+        }
+        let mutating = matches!(key.code, KeyCode::Char('c' | 'u' | ' '))
+            || (ctrl && matches!(key.code, KeyCode::Char('d' | 'k')));
+        if mutating && ctx.readonly() {
+            return Outcome::readonly();
+        }
         match key.code {
             KeyCode::Enter => self.open_selected(ctx, false),
             KeyCode::Char('d') if !ctrl => self.open_selected(ctx, true),
             KeyCode::Char('f') if self.kind == Kind::Tasks => {
                 self.task_state = (self.task_state + 1) % TASK_STATES.len();
                 Outcome::Fetch(FetchKind::Refresh)
+            }
+            KeyCode::Char('c') => match (ctx.registry(), self.own_type(ctx)) {
+                (Some(reg), Some(t)) => match form::FormView::create(t, reg) {
+                    Some(f) => Outcome::Push(Box::new(f)),
+                    None => Outcome::None,
+                },
+                _ => Outcome::None,
+            },
+            KeyCode::Char('u') => {
+                let (Some(reg), Some(t), Some(row)) = (ctx.registry(), self.selected_type(ctx), self.selected()) else {
+                    return Outcome::None;
+                };
+                let href = row.href().unwrap_or_default();
+                let name = row.name().map(str::to_owned).unwrap_or_else(|| format::href(href, ctx.names));
+                match form::FormView::edit(t, href, &name, reg) {
+                    Some(f) => Outcome::Push(Box::new(f)),
+                    None => Outcome::None,
+                }
             }
             KeyCode::Char(' ') => {
                 if let Some(href) = self.selected().and_then(|r| r.href()).map(str::to_owned)

@@ -14,7 +14,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::lines::{LineList, json_lines};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, open_href};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, form, open_href};
 use crate::format;
 use crate::names::NameCache;
 
@@ -36,8 +36,12 @@ impl DetailView {
         Self { href, label: None, data: None, lines: LineList::default(), error: None, resolved: false }
     }
 
+    fn resource_type<'a>(&self, ctx: &'a Ctx) -> Option<&'a pulply_api::ResourceType> {
+        ctx.registry()?.type_for_href(&self.href)
+    }
+
     fn can_delete(&self, ctx: &Ctx) -> bool {
-        ctx.registry().and_then(|r| r.type_for_href(&self.href)).is_some_and(|t| t.ops.delete)
+        self.resource_type(ctx).is_some_and(|t| t.ops.delete)
     }
 }
 
@@ -74,8 +78,13 @@ impl View for DetailView {
 
     fn hints(&self, ctx: &Ctx) -> Vec<Hint> {
         let mut h = vec![Hint::new("↵", t!("hint.follow")), Hint::new("j/k", t!("hint.scroll"))];
-        if !ctx.readonly() && self.can_delete(ctx) {
-            h.push(Hint::new("ctrl-d", t!("hint.delete")));
+        if !ctx.readonly() {
+            if self.resource_type(ctx).is_some_and(|t| t.ops.partial_update) {
+                h.push(Hint::new("u", t!("hint.edit")));
+            }
+            if self.can_delete(ctx) {
+                h.push(Hint::new("ctrl-d", t!("hint.delete")));
+            }
         }
         h
     }
@@ -85,10 +94,20 @@ impl View for DetailView {
             return Outcome::None;
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        if ctx.readonly() && (key.code == KeyCode::Char('u') || ctrl && key.code == KeyCode::Char('d')) {
+            return Outcome::readonly();
+        }
         match key.code {
             KeyCode::Enter => match self.lines.selected_href().and_then(|h| open_href(h, ctx)) {
                 Some(view) => Outcome::Push(view),
                 None => Outcome::None,
+            },
+            KeyCode::Char('u') => match (ctx.registry(), self.resource_type(ctx)) {
+                (Some(reg), Some(t)) => match form::FormView::edit(t, &self.href, &self.title(), reg) {
+                    Some(f) => Outcome::Push(Box::new(f)),
+                    None => Outcome::None,
+                },
+                _ => Outcome::None,
             },
             KeyCode::Char('d') if ctrl && self.can_delete(ctx) => actions::delete(vec![self.href.clone()], ctx, true),
             _ => Outcome::Ignored,

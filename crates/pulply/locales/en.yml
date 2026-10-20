@@ -70,6 +70,7 @@ list:
   loading: Loading…
   empty: No resources.
   state: state
+  pick: "Select %{what}"
 
 hint:
   open: open
@@ -99,6 +100,12 @@ hint:
   cancel_task: cancel task
   delete: delete
   close: close
+  select: select
+  cancel: cancel
+  create: create
+  edit: edit
+  field: field
+  clear: clear
 
 help:
   title: Help
@@ -141,6 +148,22 @@ action:
   delete: "delete %{name}"
   cancel: "cancel %{name}"
   n_resources: "%{count} resources"
+  create: "create %{name}"
+  update: "update %{name}"
+
+form:
+  create: "New · %{what}"
+  edit: "Edit · %{what}"
+  required: required
+  not_integer: not an integer
+  not_number: not a number
+  bad_json: "invalid JSON: %{error}"
+  no_changes: No changes
+  default: default
+  pick: pick
+  submit: Submit
+  submitting: Submitting…
+  submit_help: "Enter or Ctrl-S to submit"
 
 connect:
   title: Connection

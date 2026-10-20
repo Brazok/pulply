@@ -8,6 +8,7 @@ pub mod connect;
 pub mod contexts;
 pub mod dashboard;
 pub mod detail;
+pub mod form;
 pub mod lines;
 pub mod list;
 pub mod summary;
