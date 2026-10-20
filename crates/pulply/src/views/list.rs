@@ -392,6 +392,7 @@ impl View for ListView {
             }
             if self.selected_type(ctx).is_some_and(|t| t.ops.partial_update) {
                 h.push(Hint::new("u", t!("hint.edit")));
+                h.push(Hint::new("e", t!("hint.yaml")));
             }
             h.push(Hint::new("space", t!("hint.mark")));
             if self.kind == Kind::Tasks {
@@ -422,7 +423,7 @@ impl View for ListView {
                 _ => Outcome::Ignored,
             };
         }
-        let mutating = matches!(key.code, KeyCode::Char('c' | 'u' | ' '))
+        let mutating = matches!(key.code, KeyCode::Char('c' | 'u' | 'e' | ' '))
             || (ctrl && matches!(key.code, KeyCode::Char('d' | 'k')));
         if mutating && ctx.readonly() {
             return Outcome::readonly();
@@ -441,6 +442,9 @@ impl View for ListView {
                 },
                 _ => Outcome::None,
             },
+            KeyCode::Char('e') if self.selected_type(ctx).is_some_and(|t| t.ops.partial_update) => {
+                self.selected().and_then(|r| r.href()).map_or(Outcome::None, |h| Outcome::EditExternal(h.to_owned()))
+            }
             KeyCode::Char('u') => {
                 let (Some(reg), Some(t), Some(row)) = (ctx.registry(), self.selected_type(ctx), self.selected()) else {
                     return Outcome::None;

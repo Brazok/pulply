@@ -139,6 +139,8 @@ pub enum Outcome {
         key: String,
         value: Value,
     },
+    /// Edit a resource as YAML in `$EDITOR`.
+    EditExternal(String),
     Notify(Level, String),
     Batch(Vec<Outcome>),
 }

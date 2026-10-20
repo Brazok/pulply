@@ -106,6 +106,7 @@ hint:
   edit: edit
   field: field
   clear: clear
+  yaml: edit YAML
 
 help:
   title: Help
@@ -164,6 +165,15 @@ form:
   submit: Submit
   submitting: Submitting…
   submit_help: "Enter or Ctrl-S to submit"
+
+editor:
+  help: "Save to apply changed fields (PATCH). Empty the file to cancel."
+  error: ERROR
+  unknown_field: "%{field} is not an editable field"
+  not_mapping: the document must be a mapping of fields
+  exit: "%{program} exited with %{code}"
+  not_editable: This resource cannot be edited
+  cancelled: Edit cancelled
 
 connect:
   title: Connection

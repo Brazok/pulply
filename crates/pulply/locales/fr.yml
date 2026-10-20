@@ -106,6 +106,7 @@ hint:
   edit: modifier
   field: champ
   clear: effacer
+  yaml: éditer en YAML
 
 help:
   title: Aide
@@ -164,6 +165,15 @@ form:
   submit: Valider
   submitting: Envoi…
   submit_help: "Entrée ou Ctrl-S pour valider"
+
+editor:
+  help: "Enregistrer pour appliquer les champs modifiés (PATCH). Vider le fichier pour annuler."
+  error: ERREUR
+  unknown_field: "%{field} n'est pas un champ modifiable"
+  not_mapping: le document doit être un dictionnaire de champs
+  exit: "%{program} s'est terminé avec %{code}"
+  not_editable: Cette ressource n'est pas modifiable
+  cancelled: Édition annulée
 
 connect:
   title: Connexion

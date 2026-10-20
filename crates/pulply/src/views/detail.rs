@@ -81,6 +81,7 @@ impl View for DetailView {
         if !ctx.readonly() {
             if self.resource_type(ctx).is_some_and(|t| t.ops.partial_update) {
                 h.push(Hint::new("u", t!("hint.edit")));
+                h.push(Hint::new("e", t!("hint.yaml")));
             }
             if self.can_delete(ctx) {
                 h.push(Hint::new("ctrl-d", t!("hint.delete")));
@@ -94,7 +95,7 @@ impl View for DetailView {
             return Outcome::None;
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        if ctx.readonly() && (key.code == KeyCode::Char('u') || ctrl && key.code == KeyCode::Char('d')) {
+        if ctx.readonly() && (matches!(key.code, KeyCode::Char('u' | 'e')) || ctrl && key.code == KeyCode::Char('d')) {
             return Outcome::readonly();
         }
         match key.code {
@@ -102,6 +103,9 @@ impl View for DetailView {
                 Some(view) => Outcome::Push(view),
                 None => Outcome::None,
             },
+            KeyCode::Char('e') if self.resource_type(ctx).is_some_and(|t| t.ops.partial_update) => {
+                Outcome::EditExternal(self.href.clone())
+            }
             KeyCode::Char('u') => match (ctx.registry(), self.resource_type(ctx)) {
                 (Some(reg), Some(t)) => match form::FormView::edit(t, &self.href, &self.title(), reg) {
                     Some(f) => Outcome::Push(Box::new(f)),

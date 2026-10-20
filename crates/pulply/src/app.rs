@@ -18,6 +18,8 @@ use tokio::task::AbortHandle;
 
 use crate::commands::{self, Target};
 use crate::config::{Config, netrc};
+use crate::editor::{self, EditOutcome};
+use crate::format;
 use crate::names::NameCache;
 use crate::session::{self, Session};
 use crate::theme::Theme;
@@ -144,6 +146,8 @@ pub struct App {
     last_track: Option<Instant>,
     track_inflight: bool,
     pending_command: Option<String>,
+    /// Resource to open in `$EDITOR` once the current event is handled.
+    pending_edit: Option<String>,
     netrc: Vec<netrc::Entry>,
     password: Option<String>,
     tx: UnboundedSender<Msg>,
@@ -194,6 +198,7 @@ impl App {
             last_track: None,
             track_inflight: false,
             pending_command: None,
+            pending_edit: None,
             netrc,
             password: None,
             tx,
@@ -223,8 +228,47 @@ impl App {
                 Some(msg) = self.rx.recv() => self.on_msg(msg),
                 _ = tick.tick() => self.on_tick(),
             }
+            if let Some(href) = self.pending_edit.take() {
+                // The event reader would steal the editor's keystrokes: stop it meanwhile.
+                drop(events);
+                self.run_editor(terminal, href).await;
+                events = EventStream::new();
+            }
         }
         Ok(())
+    }
+
+    async fn run_editor(&mut self, terminal: &mut DefaultTerminal, href: String) {
+        let Some(s) = &self.session else { return };
+        if s.client.readonly() {
+            self.notify(Level::Error, t!("notice.readonly").into_owned());
+            return;
+        }
+        let writable: Vec<String> = s
+            .registry
+            .as_deref()
+            .and_then(|r| {
+                let t = r.type_for_href(&href)?;
+                r.schema(t.update_schema.as_deref()?)
+            })
+            .map(|schema| schema.properties.iter().filter(|(_, p)| !p.read_only).map(|(k, _)| k.clone()).collect())
+            .unwrap_or_default();
+        if writable.is_empty() {
+            self.notify(Level::Error, t!("editor.not_editable").into_owned());
+            return;
+        }
+        let client = s.client.clone();
+        let name = format::href(&href, &self.names);
+        match editor::edit(terminal, &client, &href, &writable).await {
+            Ok(EditOutcome::Applied(body)) => {
+                let label = t!("action.update", name = name).into_owned();
+                let mutation = Mutation::new(pulply_api::Method::PATCH, href, None, label);
+                self.on_mutated(0, mutation, Ok(body));
+            }
+            Ok(EditOutcome::Unchanged) => self.notify(Level::Info, t!("form.no_changes").into_owned()),
+            Ok(EditOutcome::Cancelled) => self.notify(Level::Info, t!("editor.cancelled").into_owned()),
+            Err(e) => self.notify(Level::Error, e),
+        }
     }
 
     // ------------------------------------------------------------ sessions
@@ -770,6 +814,7 @@ impl App {
                     slot.view.receive(&key, value);
                 }
             }
+            Outcome::EditExternal(href) => self.pending_edit = Some(href),
             Outcome::Notify(level, text) => self.notify(level, text),
             Outcome::Batch(all) => {
                 for o in all {
