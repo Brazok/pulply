@@ -447,6 +447,11 @@ impl View for ListView {
                 }
             }
             Ok(_) => {}
+            // Some plugin endpoints crash on `?fields=` (deb source_packages, gem): retry without it.
+            Err(Error::Http { status: 500, .. }) if self.fields_param => {
+                self.fields_param = false;
+                return Outcome::Fetch(kind);
+            }
             Err(e) => self.error = Some(e.to_string()),
         }
         Outcome::None
