@@ -107,6 +107,12 @@ hint:
   field: champ
   clear: effacer
   yaml: éditer en YAML
+  sync: synchroniser
+  publish: publier
+  distribute: distribuer
+  rollback: revenir à cette version
+  add_content: ajouter du contenu
+  remove_content: retirer
 
 help:
   title: Aide
@@ -144,6 +150,8 @@ confirm:
   "no": "Non"
   delete: "Supprimer %{what} ?"
   cancel: "Annuler %{what} ?"
+  rollback: "Créer une nouvelle version de %{repo} avec le contenu de %{version} ?"
+  remove_content: "Retirer %{what} de %{repo} ?"
 
 action:
   delete: "suppression de %{name}"
@@ -151,10 +159,17 @@ action:
   n_resources: "%{count} ressources"
   create: "création de %{name}"
   update: "modification de %{name}"
+  sync: "synchronisation de %{name}"
+  publish: "publication de %{name}"
+  distribute: "distribution de %{name}"
+  rollback: "retour arrière de %{name}"
+  add_content: "ajout de %{count} unités à %{name}"
+  remove_content: "retrait de %{count} unités de %{name}"
 
 form:
   create: "Nouveau · %{what}"
   edit: "Modifier · %{what}"
+  sync: "Synchroniser · %{what}"
   required: obligatoire
   not_integer: entier attendu
   not_number: nombre attendu

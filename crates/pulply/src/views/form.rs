@@ -253,8 +253,9 @@ impl FormView {
         self
     }
 
-    pub fn with_intro(mut self, intro: String) -> Self {
-        self.intro = Some(intro);
+    /// Label used in notifications and the task bar (`publish iso`).
+    pub fn with_label(mut self, label: String) -> Self {
+        self.label = label;
         self
     }
 
@@ -262,10 +263,6 @@ impl FormView {
     pub fn with_count(mut self, path: String, query: Vec<(String, String)>, key: &'static str) -> Self {
         self.count = Some((path, query, key));
         self
-    }
-
-    pub fn has_field(&self, name: &str) -> bool {
-        self.fields.iter().any(|f| f.name == name)
     }
 
     fn body(&mut self) -> Option<Value> {
@@ -364,7 +361,11 @@ impl FormView {
         let mut spans = vec![Span::styled(format!("{star}{:<w$} ", f.name, w = LABEL_WIDTH - 1), theme.accent())];
         let empty = f.value.is_empty();
         match &f.kind {
-            FieldKind::Bool => spans.push(Span::raw(if f.value == "true" { "[x]" } else { "[ ]" })),
+            FieldKind::Bool => spans.push(Span::raw(match f.value.as_str() {
+                "true" => "[x]",
+                "false" => "[ ]",
+                _ => "[-]", // unset: the server default applies
+            })),
             FieldKind::Enum(_) => spans.push(Span::raw(format!("‹ {} ›", if empty { "–" } else { &f.value }))),
             FieldKind::Secret => spans.push(Span::raw("•".repeat(f.value.chars().count()))),
             _ => spans.push(Span::raw(f.value.clone())),

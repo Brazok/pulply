@@ -394,6 +394,17 @@ impl View for ListView {
                 h.push(Hint::new("u", t!("hint.edit")));
                 h.push(Hint::new("e", t!("hint.yaml")));
             }
+            if let Some(href) = self.selected().and_then(|r| r.href()) {
+                if actions::can_sync(href, ctx) {
+                    h.push(Hint::new("s", t!("hint.sync")));
+                }
+                if actions::can_publish(href, ctx) {
+                    h.push(Hint::new("P", t!("hint.publish")));
+                }
+                if actions::can_distribute(href, ctx) {
+                    h.push(Hint::new("D", t!("hint.distribute")));
+                }
+            }
             h.push(Hint::new("space", t!("hint.mark")));
             if self.kind == Kind::Tasks {
                 h.push(Hint::new("ctrl-k", t!("hint.cancel_task")));
@@ -455,6 +466,27 @@ impl View for ListView {
                     Some(f) => Outcome::Push(Box::new(f)),
                     None => Outcome::None,
                 }
+            }
+            KeyCode::Char('s') if self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_sync(h, ctx)) => {
+                self.selected().map_or(Outcome::None, |row| actions::sync(row, ctx))
+            }
+            KeyCode::Char('P')
+                if self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_publish(h, ctx)) =>
+            {
+                self.selected().and_then(|r| r.href()).map_or(Outcome::None, |h| actions::publish(h, ctx))
+            }
+            KeyCode::Char('D')
+                if self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_distribute(h, ctx)) =>
+            {
+                let Some(row) = self.selected() else { return Outcome::None };
+                let href = row.href().unwrap_or_default();
+                // Publications have no name: name the distribution after the published version.
+                let name = row
+                    .name()
+                    .map(str::to_owned)
+                    .or_else(|| row.str_field("repository_version").map(|v| format::href(v, ctx.names)))
+                    .unwrap_or_else(|| format::href(href, ctx.names));
+                actions::distribute(href, &name, ctx)
             }
             KeyCode::Char(' ') => {
                 if let Some(href) = self.selected().and_then(|r| r.href()).map(str::to_owned)

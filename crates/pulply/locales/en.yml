@@ -107,6 +107,12 @@ hint:
   field: field
   clear: clear
   yaml: edit YAML
+  sync: sync
+  publish: publish
+  distribute: distribute
+  rollback: rollback
+  add_content: add content
+  remove_content: remove
 
 help:
   title: Help
@@ -144,6 +150,8 @@ confirm:
   "no": "No"
   delete: "Delete %{what}?"
   cancel: "Cancel %{what}?"
+  rollback: "Create a new version of %{repo} with the content of %{version}?"
+  remove_content: "Remove %{what} from %{repo}?"
 
 action:
   delete: "delete %{name}"
@@ -151,10 +159,17 @@ action:
   n_resources: "%{count} resources"
   create: "create %{name}"
   update: "update %{name}"
+  sync: "sync %{name}"
+  publish: "publish %{name}"
+  distribute: "distribute %{name}"
+  rollback: "rollback %{name}"
+  add_content: "add %{count} units to %{name}"
+  remove_content: "remove %{count} units from %{name}"
 
 form:
   create: "New · %{what}"
   edit: "Edit · %{what}"
+  sync: "Sync · %{what}"
   required: required
   not_integer: not an integer
   not_number: not a number
