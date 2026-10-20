@@ -12,7 +12,7 @@ pulply/
 ├── crates/
 │   ├── pulply-api/            # client HTTP, registre OpenAPI, modèles, tâches, upload
 │   └── pulply/                # binaire TUI (ratatui + crossterm)
-├── locales/                   # en.yml, fr.yml
+│       └── locales/           # en.yml, fr.yml (dans la crate pour être publiés sur crates.io)
 ├── skins/                     # dark.toml, light.toml
 ├── deploy/compose.yml         # pulp/pulp pour dev + tests d'intégration
 └── docs/spec/
@@ -41,16 +41,17 @@ flowchart LR
 
 ### Boucle d'événements (R3.8)
 
-- `tokio` multi-thread. Une boucle principale `select!` sur : événements terminal, `mpsc<Action>` (résultats réseau, ticks du poller, tâches), tick de rendu (≈ 30 fps, rendu seulement si l'état est sale).
-- Toute requête réseau est un `tokio::spawn` qui renvoie une `Action` ; le thread de rendu ne fait jamais d'I/O.
-- Requêtes annulables (`CancellationToken`) quand la vue est quittée (R5.5).
+- `tokio` multi-thread. Une boucle principale `select!` sur : événements terminal, `mpsc<Msg>` (résultats réseau, noms résolus, compteurs de tâches), tick de 250 ms (polling, expiration des notifications).
+- Toute requête réseau est un `tokio::spawn` qui renvoie un `Msg` ; le thread de rendu ne fait jamais d'I/O.
+- Les requêtes d'une vue sont annulées (`AbortHandle`) quand elle quitte la pile ; les messages d'un contexte précédent sont ignorés grâce à un numéro de génération (R5.5).
 
 ### Modèle d'état
 
-- `App { contexts, active: Session, view_stack: Vec<Box<dyn View>>, modal: Option<Modal>, notifications, tasks: TaskTracker, config }`.
-- `Session { client: PulpClient, registry: Arc<ResourceRegistry>, status: Status, caps: Capabilities }`, recréée à chaque `:ctx` (R1.4).
-- `Capabilities` est dérivée de la version de pulpcore : `etag` (≥ 3.122), etc. (R1.7, R5.3).
-- Trait `View` : `title()`, `breadcrumb()`, `keymap() -> &[Binding]`, `handle(Action) -> Vec<Action>`, `render(Frame, Rect)`, `poll_spec() -> Option<PollSpec>`.
+- `App { config, session: Option<Session>, stack: Vec<Slot>, sidebar, prompt, names: NameCache, notice, … }`.
+- `Session { client: PulpClient, status: Status, registry: Option<Arc<Registry>>, refresh }`, recréée à chaque `:ctx` (R1.4) ; le registre arrive en tâche de fond.
+- Pas de table de capacités : `Status::supported()` (≥ 3.50) pilote l'avertissement (R1.7) et l'ETag est utilisé dès que le serveur renvoie l'en-tête (R5.3).
+- Trait `View` : `title()`, `info()`, `hints()`, `handle_key() -> Outcome`, `render()`, `fetch(FetchKind) -> Option<Fetch>`, `on_data()`, `poll_interval()`, `set_filter()`.
+- `NameCache` (href/PRN → nom) alimenté par chaque payload, complété à la demande (`Outcome::Resolve`, PRN résolus par type via `?prn__in=`).
 
 ## 2. pulply-api
 
@@ -224,4 +225,5 @@ Fichiers annexes : `hotkeys.toml`, `aliases.toml`, `views.toml`, `plugins.toml`,
 | Hétérogénéité des plugins (actions, champs) | Registre piloté par `operationId` ; vues sur mesure seulement là où il y a de la valeur ; repli générique toujours disponible. |
 | Inférence des cibles `Href` incorrecte | Table de correspondance explicite + saisie libre du href en repli. |
 | Diff de grosses versions (centaines de milliers de RPM) | `fields=pulp_href`, pagination en flux, résumé d'abord, détail à la demande. |
-| Variations entre versions de pulpcore | `Capabilities` par version ; tests d'intégration sur la version minimale (3.50) et la dernière. |
+| Variations entre versions de pulpcore | Comportement piloté par le schéma OpenAPI du serveur ; tests d'intégration sur la version minimale (3.50) et la dernière. |
+| Endpoints de plugins qui plantent sur `?fields=` (gem, deb source_packages) | La liste réessaie sans `fields` sur une 500. |

@@ -4,22 +4,22 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 ## M1 — Socle + visualisation (lecture seule de fait)
 
-- [ ] Workspace `pulply-api` / `pulply`, CI (fmt, clippy, tests), hook de panique qui restaure le terminal — R16.2
-- [ ] `deploy/compose.yml` (image `pulp/pulp`, admin/password) + capture de la fixture `api.json`
-- [ ] Config : `config.toml`, import de `cli.toml` et de ses profils, netrc, `PULPLY_PASSWORD`, prompt — R1.1–R1.3
-- [ ] CLI `clap` : `--context`, `--config`, `--readonly`, `-c`, `--refresh`, `-l` — R1.5
-- [ ] `PulpClient` : basic auth, TLS, erreurs typées, garde readonly — R1.2, R13.1
-- [ ] Status + détection de version + `Capabilities`, avertissement < 3.50 — R1.7, R2.1
-- [ ] Registre OpenAPI : fetch, cache, classification, alias — R2.1–R2.5
-- [ ] Shell TUI : en-tête, sidebar, fil d'Ariane, barre de statut, aide, mode commande avec autocomplétion, filtre `/` — R3.1–R3.5
-- [ ] `GenericListView` (pagination, tri, filtres API) + `GenericDetailView` (describe) — R3.6, R3.7
-- [ ] Navigation repo → versions → contenu
-- [ ] Dashboard — R4
-- [ ] Poller adaptatif, ETag, pause, refresh — R5
-- [ ] Vues tâches (liste, détail, progression, erreurs) — R6.1, R6.2
-- [ ] `:ctx` (bascule à chaud), écran d'erreur de connexion — R1.4, R1.6
-- [ ] Infrastructure i18n (`t!()` partout, `en.yml` complet) — R15
-- [ ] Logs fichier — R16.1
+- [x] Workspace `pulply-api` / `pulply`, CI (fmt, clippy, tests), hook de panique qui restaure le terminal — R16.2
+- [x] `deploy/compose.yml` (image `pulp/pulp`, admin/password) + capture de la fixture `api.json`
+- [x] Config : `config.toml`, import de `cli.toml` et de ses profils, netrc, `PULPLY_PASSWORD`, prompt — R1.1–R1.3
+- [x] CLI `clap` : `--context`, `--config`, `--readonly`, `-c`, `--refresh`, `-l` — R1.5
+- [x] `PulpClient` : basic auth, TLS, erreurs typées, garde readonly — R1.2, R13.1
+- [x] Status + détection de version, avertissement < 3.50 — R1.7, R2.1 (ETag utilisé dès que le serveur en renvoie, sans table de capacités)
+- [x] Registre OpenAPI : fetch, cache, classification, alias, résolution href/PRN → type — R2.1–R2.5
+- [x] Shell TUI : en-tête, sidebar, fil d'Ariane, barre de statut, aide, mode commande avec autocomplétion, filtre `/` — R3.1–R3.5
+- [x] `ListView` (pagination, tri, filtres API, repli sans `fields` sur erreur serveur) + `DetailView` (describe) — R3.6, R3.7
+- [x] Navigation repo → versions → contenu
+- [x] Dashboard — R4
+- [x] Poller adaptatif, ETag, pause, refresh — R5
+- [x] Vues tâches (liste, détail, progression, erreurs) — R6.1, R6.2
+- [x] `:ctx` (bascule à chaud), écran d'erreur de connexion — R1.4, R1.6
+- [x] Infrastructure i18n (`t!()` partout, `en.yml` et `fr.yml` complets) — R15
+- [x] Logs fichier — R16.1
 
 **Acceptation M1** : contre le conteneur, naviguer dans tous les types de ressources de tous les plugins installés, voir le dashboard et suivre une tâche lancée depuis `pulp-cli` en direct.
 
