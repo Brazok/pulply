@@ -173,14 +173,7 @@ pub fn suggest<'a>(input: &str, candidates: &'a [String]) -> Option<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
-
-    fn registry() -> Registry {
-        let gz = include_bytes!("../../pulply-api/tests/fixtures/api.json.gz");
-        let mut bytes = Vec::new();
-        flate2::read::GzDecoder::new(&gz[..]).read_to_end(&mut bytes).unwrap();
-        Registry::from_json(&bytes, "/pulp/api/v3/", None).unwrap()
-    }
+    use crate::testutil::registry;
 
     #[test]
     fn resolves_aliases_with_plugin_qualifiers() {

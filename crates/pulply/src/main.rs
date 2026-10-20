@@ -8,6 +8,8 @@ mod labels;
 mod logging;
 mod names;
 mod session;
+#[cfg(test)]
+mod testutil;
 mod theme;
 mod ui;
 mod views;

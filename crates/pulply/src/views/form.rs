@@ -156,6 +156,14 @@ fn build_field(name: &str, p: &Property, schema: &Schema, reg: &Registry, plugin
     }
 }
 
+/// List query whose `count` is shown on top of the form, with `key` as message.
+#[derive(Clone)]
+struct CountQuery {
+    path: String,
+    query: Vec<(String, String)>,
+    key: &'static str,
+}
+
 pub struct FormView {
     id: u64,
     title: String,
@@ -167,7 +175,7 @@ pub struct FormView {
     load: Option<String>,
     original: Option<Value>,
     /// Estimated count shown on top (`?orphaned_for=0` before an orphan cleanup).
-    count: Option<(String, Vec<(String, String)>, &'static str)>,
+    count: Option<CountQuery>,
     intro: Option<String>,
     errors: BTreeMap<String, Vec<String>>,
     general: Option<String>,
@@ -261,7 +269,7 @@ impl FormView {
 
     /// Shows `count` of a list query on top, with `key` (`%{count}`) as message.
     pub fn with_count(mut self, path: String, query: Vec<(String, String)>, key: &'static str) -> Self {
-        self.count = Some((path, query, key));
+        self.count = Some(CountQuery { path, query, key });
         self
     }
 
@@ -502,7 +510,7 @@ impl View for FormView {
         if let Some(href) = self.load.clone().filter(|_| self.original.is_none()) {
             return Some(async move { client.get(&href, &[]).await.map(Payload::Object) }.boxed());
         }
-        let (path, query, _) = self.count.clone()?;
+        let CountQuery { path, query, .. } = self.count.clone()?;
         Some(async move { client.count(&path, &query).await.map(Payload::Count) }.boxed())
     }
 
@@ -517,7 +525,7 @@ impl View for FormView {
                 self.original = Some(resource);
             }
             Ok(Payload::Count(n)) => {
-                if let Some((_, _, key)) = &self.count {
+                if let Some(CountQuery { key, .. }) = &self.count {
                     self.intro = Some(labels::tr_count(key, n));
                 }
             }

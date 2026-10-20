@@ -749,6 +749,56 @@ impl View for ListView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::names::NameCache;
+    use crate::testutil;
+    use crate::theme::Theme;
+    use crate::views::Level;
+    use pulply_api::Page;
+    use serde_json::json;
+
+    /// File repository list with one row under the cursor.
+    fn repo_list(ctx: &Ctx) -> ListView {
+        let reg = ctx.registry().unwrap();
+        let mut list = ListView::for_type(reg.get("repositories/file/file").unwrap(), reg, None);
+        let row = json!({"pulp_href": "/pulp/api/v3/repositories/file/file/0192/", "name": "iso"});
+        let page = Page { count: 1, next: None, results: vec![row] };
+        list.on_data(FetchKind::Refresh, Ok(Payload::Page(page)), ctx);
+        list.rebuild_visible(ctx);
+        list
+    }
+
+    #[test]
+    fn readonly_hides_mutation_actions_and_refuses_their_keys() {
+        let (names, theme, config) = (NameCache::default(), Theme::default(), testutil::config());
+        let mutation_keys = ["c", "u", "e", "s", "P", "D", "ctrl-d", "space"];
+        for readonly in [false, true] {
+            let session = testutil::session(readonly);
+            let ctx = Ctx {
+                session: Some(&session),
+                names: &names,
+                theme: &theme,
+                config: &config,
+                current_ctx: "test",
+                now: chrono::Utc::now(),
+            };
+            let mut list = repo_list(&ctx);
+            let hints: Vec<&str> = list.hints(&ctx).iter().map(|h| h.key).collect();
+            for key in mutation_keys {
+                assert_eq!(hints.contains(&key), !readonly, "hint {key} with readonly={readonly}: {hints:?}");
+            }
+            assert!(hints.contains(&"d") && hints.contains(&"↵"), "browsing stays available");
+            if readonly {
+                for code in [KeyCode::Char('c'), KeyCode::Char('s'), KeyCode::Char('D')] {
+                    assert!(
+                        matches!(list.handle_key(KeyEvent::from(code), &ctx), Outcome::Notify(Level::Error, _)),
+                        "{code:?} must be refused"
+                    );
+                }
+                let ctrl_d = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+                assert!(matches!(list.handle_key(ctrl_d, &ctx), Outcome::Notify(Level::Error, _)));
+            }
+        }
+    }
 
     #[test]
     fn filter_input_splits_client_and_server_parts() {
