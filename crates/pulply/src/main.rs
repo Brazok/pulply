@@ -1,8 +1,15 @@
+mod app;
 mod cli;
 mod commands;
 mod config;
+mod format;
+mod labels;
 mod logging;
+mod names;
 mod session;
+mod theme;
+mod ui;
+mod views;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
@@ -15,16 +22,29 @@ fn select_language(configured: Option<&str>) -> &'static str {
     if wanted.starts_with("fr") { "fr" } else { "en" }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = cli::Cli::parse();
     let _log_guard = logging::init(&cli.log_level)?;
     let config = config::Config::load(cli.config.as_deref())?;
     rust_i18n::set_locale(select_language(config.language.as_deref()));
-    let context = config.select_context(cli.context.as_deref())?;
-    println!("{}", context.name);
-    Ok(())
+    let context = config.select_context(cli.context.as_deref())?.name.clone();
+    tracing::info!(context, "starting pulply {}", env!("CARGO_PKG_VERSION"));
+
+    let opts = app::Options {
+        context,
+        readonly: cli.readonly,
+        refresh: cli.refresh,
+        start: cli.command.unwrap_or_else(|| config.start_view.clone()),
+    };
+    // ratatui::init() installs a panic hook that restores the terminal before color-eyre reports.
+    let mut terminal = ratatui::init();
+    let result = app::App::new(config, opts).run(&mut terminal).await;
+    ratatui::restore();
+    result
 }
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
