@@ -86,9 +86,7 @@ impl Config {
     /// Loads the pulply config (missing file = defaults) and merges pulp-cli profiles.
     pub fn load(path: Option<&Path>) -> Result<Self> {
         let explicit = path.is_some();
-        let path = path
-            .map(Path::to_path_buf)
-            .or_else(|| config_dir().map(|d| d.join("config.toml")));
+        let path = path.map(Path::to_path_buf).or_else(|| config_dir().map(|d| d.join("config.toml")));
         let file = match &path {
             Some(p) if p.exists() => {
                 let text = std::fs::read_to_string(p).wrap_err_with(|| format!("reading {}", p.display()))?;
@@ -179,10 +177,7 @@ impl ContextConfig {
     pub fn credentials(&self, netrc_entries: &[netrc::Entry]) -> Option<Credentials> {
         let host = url::Url::parse(&self.base_url).ok()?.host_str().map(str::to_owned);
         let from_netrc = host.and_then(|h| netrc::lookup(netrc_entries, &h, self.username.as_deref()));
-        let username = self
-            .username
-            .clone()
-            .or_else(|| from_netrc.as_ref().and_then(|e| e.login.clone()))?;
+        let username = self.username.clone().or_else(|| from_netrc.as_ref().and_then(|e| e.login.clone()))?;
         let password = self
             .password
             .clone()
@@ -197,7 +192,8 @@ impl ContextConfig {
 
     pub fn client_config(&self, creds: Option<Credentials>, readonly: bool) -> Result<ClientConfig> {
         Ok(ClientConfig {
-            base_url: url::Url::parse(&self.base_url).wrap_err_with(|| format!("invalid base_url '{}'", self.base_url))?,
+            base_url: url::Url::parse(&self.base_url)
+                .wrap_err_with(|| format!("invalid base_url '{}'", self.base_url))?,
             api_root: self.api_root.clone().unwrap_or_else(|| "/pulp/".into()),
             domain: self.domain.clone(),
             username: creds.as_ref().map(|c| c.username.clone()),

@@ -1,0 +1,197 @@
+_version: 1
+
+header:
+  context: "ctx :"
+  paused: en pause
+  unsupported: "⚠ pulpcore non supporté (< 3.50)"
+
+status:
+  running: en cours
+  waiting: en attente
+
+sidebar:
+  core: Core
+  dashboard: Tableau de bord
+  all: tous
+  loading: chargement du schéma…
+
+resource:
+  repositories: Dépôts
+  remotes: Remotes
+  distributions: Distributions
+  publications: Publications
+  content: Contenu
+  acs: ACS
+  contentguards: Content guards
+  exporters: Exporteurs
+  importers: Importeurs
+  tasks: Tâches
+  task-groups: Groupes de tâches
+  task-schedules: Planifications
+  workers: Workers
+  users: Utilisateurs
+  groups: Groupes
+  roles: Rôles
+  artifacts: Artefacts
+  uploads: Uploads
+  access_policies: Politiques d'accès
+  signing-services: Services de signature
+  upstream-pulps: Pulp amont
+  domains: Domaines
+  repository_versions: Versions de dépôts
+  vuln_report: Rapports de vulnérabilités
+
+col:
+  age: ÂGE
+  base: BASE
+  base_path: CHEMIN
+  base_url: URL DE BASE
+  completed: TERMINÉ
+  content: CONTENU
+  duration: DURÉE
+  file: FICHIER
+  heartbeat: HEARTBEAT
+  name: NOM
+  policy: POLITIQUE
+  remote: REMOTE
+  repository: DÉPÔT
+  resources: RESSOURCES
+  retain: RÉTENTION
+  serves: SERT
+  sha256: SHA256
+  size: TAILLE
+  state: ÉTAT
+  task: TÂCHE
+  url: URL
+  version: VERSION
+  worker: WORKER
+
+list:
+  loading: Chargement…
+  empty: Aucune ressource.
+  state: état
+
+hint:
+  open: ouvrir
+  describe: décrire
+  filter: filtrer
+  sort: trier
+  task_state: filtre d'état
+  follow: suivre le lien
+  scroll: défiler
+  present: contenu
+  added: ajoutés
+  removed: retirés
+  tasks: tâches
+  failed_tasks: tâches échouées
+  workers: workers
+  repositories: dépôts
+  switch: basculer
+  contexts: contextes
+  submit: valider
+  retry: réessayer
+  quit: quitter
+  command: commande
+  help: aide
+
+help:
+  title: Aide
+  global: Global
+  view: Cette vue
+  commands: Commandes
+  command: mode commande (ressources, ctx, quit)
+  filter: filtre (-q expr, -f clé=valeur pour l'API)
+  sidebar_focus: focus sidebar / vue
+  sidebar_toggle: afficher / masquer la sidebar
+  refresh: rafraîchir maintenant
+  pause: pause / reprise du rafraîchissement
+  back: retour
+  history: historique arrière / avant
+  quit: quitter
+
+notice:
+  paused: Rafraîchissement en pause
+  resumed: Rafraîchissement repris
+  schema_loading: Schéma en cours de chargement, réessayez dans un instant
+  schema_reload: Rechargement du schéma OpenAPI…
+  schema_failed: "Impossible de charger le schéma OpenAPI : %{error}"
+  unknown_context: "Contexte inconnu : %{name}"
+  unknown_resource: "Ressource inconnue : %{name}"
+  unsupported: "pulpcore %{version} est antérieur à 3.50 : certaines vues peuvent ne pas fonctionner"
+
+connect:
+  title: Connexion
+  auth_title: Authentification
+  context: Contexte
+  connecting: Connexion…
+  password: Mot de passe
+  failed: Échec de la connexion
+
+ctx:
+  title: Contextes
+  name: NOM
+  url: URL
+  user: UTILISATEUR
+  mode: MODE
+  source: SOURCE
+  status: STATUT
+  readonly: lecture seule
+  readwrite: lecture-écriture
+
+dash:
+  title: Tableau de bord
+  health: Santé
+  tasks: Tâches
+  storage: Stockage
+  repositories: Dépôts
+  database: Base de données
+  redis: Redis
+  workers: Workers en ligne
+  missing: manquants
+  api_apps: Apps API
+  content_apps: Apps de contenu
+  content_origin: Origine du contenu
+  domains: Domaines
+  enabled: activés
+  ok: ok
+  down: en panne
+  not_connected: non connecté
+  running: En cours
+  waiting: En attente
+  failed_24h: Échouées (24 h)
+  completed_24h: Terminées (24 h)
+  free: libre
+  storage_unknown: Utilisation du stockage non rapportée
+  components: Composants
+  no_repositories: Aucun dépôt
+  schema_loading: Chargement du schéma…
+
+summary:
+  title: Contenu
+  created: Créée
+  base: Version de base
+  empty: Cette version n'a pas de contenu.
+  type: TYPE
+  present: PRÉSENTS
+  added: AJOUTÉS
+  removed: RETIRÉS
+
+task:
+  overview: Tâche
+  name: Nom
+  state: État
+  created: Créée
+  started: Démarrée
+  finished: Terminée
+  duration: Durée
+  cid: ID de corrélation
+  worker: Worker
+  parent: Tâche parente
+  group: Groupe
+  created_by: Créée par
+  progress: Progression
+  created_resources: Ressources créées
+  reserved: Ressources réservées
+  shared: (partagée)
+  children: Sous-tâches
+  error: Erreur
