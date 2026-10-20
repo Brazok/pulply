@@ -25,11 +25,7 @@ pub enum Error {
 }
 
 fn format_fields(fields: &BTreeMap<String, Vec<String>>) -> String {
-    fields
-        .iter()
-        .map(|(k, v)| format!("{k}: {}", v.join(", ")))
-        .collect::<Vec<_>>()
-        .join("; ")
+    fields.iter().map(|(k, v)| format!("{k}: {}", v.join(", "))).collect::<Vec<_>>().join("; ")
 }
 
 impl From<reqwest::Error> for Error {

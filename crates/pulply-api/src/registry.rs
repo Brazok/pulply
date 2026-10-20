@@ -333,7 +333,8 @@ impl Registry {
                         && let Some(&idx) = by_prefix.get(prefix)
                     {
                         types[idx].ops.create = true;
-                        types[idx].create_schema = op.request_body.as_ref().and_then(|b| b.schema_ref()).map(str::to_owned);
+                        types[idx].create_schema =
+                            op.request_body.as_ref().and_then(|b| b.schema_ref()).map(str::to_owned);
                     }
                     continue;
                 }
@@ -381,16 +382,15 @@ impl Registry {
             if self.types[idx].read_schema.is_some() {
                 continue;
             }
-            let item_ref = l
-                .op
-                .responses
-                .get("200")
-                .and_then(Body::schema_ref)
-                .and_then(|page| self.schemas.get(page))
-                .and_then(|page| page.properties.get("results"))
-                .and_then(|results| results.items.as_ref())
-                .and_then(|items| items.reference.as_deref())
-                .map(|r| strip_ref(r).to_owned());
+            let item_ref =
+                l.op.responses
+                    .get("200")
+                    .and_then(Body::schema_ref)
+                    .and_then(|page| self.schemas.get(page))
+                    .and_then(|page| page.properties.get("results"))
+                    .and_then(|results| results.items.as_ref())
+                    .and_then(|items| items.reference.as_deref())
+                    .map(|r| strip_ref(r).to_owned());
             self.types[idx].read_schema = item_ref;
         }
     }
@@ -425,6 +425,18 @@ impl Registry {
             .filter_map(|t| t.list_path.as_deref().filter(|p| href.starts_with(p)).map(|p| (p.len(), t)))
             .max_by_key(|(len, _)| *len)
             .map(|(_, t)| t)
+    }
+
+    /// Top-level type of a PRN (`prn:file.filerepository:<id>`), matched on its read schema
+    /// (`file.FileRepositoryResponse`). Usable with `?prn__in=` on the type's list path.
+    pub fn type_for_prn(&self, prn: &str) -> Option<&ResourceType> {
+        let model = prn.strip_prefix("prn:")?.split(':').next()?;
+        self.types.iter().filter(|t| !t.generic && t.list_path.is_some()).find(|t| {
+            t.read_schema
+                .as_deref()
+                .and_then(|s| s.strip_suffix("Response"))
+                .is_some_and(|s| s.eq_ignore_ascii_case(model))
+        })
     }
 
     /// Plugins with at least one resource type, sorted, `core` excluded.
@@ -558,6 +570,15 @@ mod tests {
     }
 
     #[test]
+    fn resolves_type_from_prn() {
+        let reg = fixture();
+        assert_eq!(reg.type_for_prn("prn:file.filerepository:01a1").unwrap().id, "repositories/file/file");
+        assert_eq!(reg.type_for_prn("prn:rpm.rpmremote:01a1").unwrap().id, "remotes/rpm/rpm");
+        assert!(reg.type_for_prn("prn:nope.thing:1").is_none());
+        assert!(reg.type_for_prn("/pulp/api/v3/tasks/").is_none());
+    }
+
+    #[test]
     fn resolves_type_from_href() {
         let reg = fixture();
         let repo = "/pulp/api/v3/repositories/container/container-push/0192-aa/";
@@ -583,7 +604,9 @@ mod tests {
     fn lists_installed_plugins() {
         let reg = fixture();
         let plugins = reg.plugins();
-        for p in ["ansible", "certguard", "container", "deb", "file", "gem", "hugging_face", "maven", "npm", "python", "rpm"] {
+        for p in
+            ["ansible", "certguard", "container", "deb", "file", "gem", "hugging_face", "maven", "npm", "python", "rpm"]
+        {
             assert!(plugins.contains(&p), "{p} missing from {plugins:?}");
         }
         assert!(!plugins.contains(&"core"));

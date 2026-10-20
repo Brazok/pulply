@@ -41,7 +41,11 @@ async fn conditional_get_serves_cached_body_on_304() {
     Mock::given(method("GET"))
         .and(path("/pulp/api/v3/tasks/"))
         .and(basic_auth("admin", "password"))
-        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"v1\"").set_body_json(json!({"count": 1, "results": [{"name": "t"}]})))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("ETag", "\"v1\"")
+                .set_body_json(json!({"count": 1, "results": [{"name": "t"}]})),
+        )
         .up_to_n_times(1)
         .mount(&server)
         .await;

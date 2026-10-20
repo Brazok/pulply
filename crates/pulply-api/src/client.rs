@@ -146,8 +146,11 @@ impl PulpClient {
     /// GET returning JSON. Uses `If-None-Match` when the server previously sent an ETag
     /// and serves the cached body on `304 Not Modified`.
     pub async fn get(&self, path: &str, query: &[(String, String)]) -> Result<Value> {
-        let url = reqwest::Url::parse_with_params(&self.url(path), query)
-            .map_err(|e| Error::Config(format!("invalid URL {path}: {e}")))?;
+        let mut url =
+            reqwest::Url::parse(&self.url(path)).map_err(|e| Error::Config(format!("invalid URL {path}: {e}")))?;
+        if !query.is_empty() {
+            url.query_pairs_mut().extend_pairs(query);
+        }
         let key = url.to_string();
         let cached_etag = self.etag_lookup(&key).map(|(etag, _)| etag);
         let mut req = self.request(Method::GET, url.as_str());
@@ -161,11 +164,7 @@ impl PulpClient {
         {
             return Ok(body);
         }
-        let etag = resp
-            .headers()
-            .get(header::ETAG)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned);
+        let etag = resp.headers().get(header::ETAG).and_then(|v| v.to_str().ok()).map(str::to_owned);
         let text = resp.text().await?;
         if !status.is_success() {
             return Err(Error::from_response(status.as_u16(), path, &text));
