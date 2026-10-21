@@ -104,7 +104,7 @@ pub struct Tracked {
 }
 
 enum Msg {
-    Connected { generation: u64, result: Result<session::Connected, Error> },
+    Connected { generation: u64, result: Result<Box<session::Connected>, Error> },
     Registry { generation: u64, result: Result<Registry, Error> },
     Data { generation: u64, view: u64, kind: FetchKind, result: Result<Payload, Error> },
     Names { generation: u64, entries: Vec<(String, String)> },
@@ -326,7 +326,7 @@ impl App {
         let generation = self.generation;
         let readonly = self.opts.readonly;
         self.spawn(async move {
-            let result = session::connect(&ctx.cfg, creds, readonly).await;
+            let result = session::connect(&ctx.cfg, creds, readonly).await.map(Box::new);
             Msg::Connected { generation, result }
         });
     }
@@ -432,11 +432,12 @@ impl App {
         });
     }
 
-    fn on_connected(&mut self, result: Result<session::Connected, Error>) {
+    fn on_connected(&mut self, result: Result<Box<session::Connected>, Error>) {
         let Some(ctx) = self.config.context(&self.ctx_name).cloned() else { return };
         let url = ctx.cfg.base_url.clone();
         match result {
-            Ok(session::Connected { client, status, perms }) => {
+            Ok(connected) => {
+                let session::Connected { client, status, perms } = *connected;
                 if !status.supported() {
                     let v = status.core_version().map(|v| v.to_string()).unwrap_or_else(|| "?".into());
                     self.notify(Level::Error, t!("notice.unsupported", version = v).into_owned());
@@ -840,6 +841,11 @@ impl App {
             }
             Target::Context(name) => self.start_connect(name),
             Target::Help => self.help = true,
+            Target::Me => {
+                if self.session.is_some() {
+                    self.push(Box::new(crate::views::admin::MeView::new()));
+                }
+            }
             Target::Quit => self.quit = true,
             Target::Operation(op) => {
                 let Some(s) = &self.session else { return };

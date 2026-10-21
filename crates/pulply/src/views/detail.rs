@@ -15,7 +15,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::lines::{LineItem, LineList, json_lines};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, form, open_href, plugins, xray};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, admin, form, open_href, plugins, xray};
 use crate::format;
 use crate::names::NameCache;
 
@@ -91,6 +91,12 @@ impl View for DetailView {
                 h.push(Hint::new("u", t!("hint.edit")));
                 h.push(Hint::new("e", t!("hint.yaml")));
             }
+            if admin::has_actions(&self.href, ctx) {
+                h.push(Hint::new("m", t!("hint.actions")));
+            }
+            if admin::can_manage_roles(&self.href, ctx) {
+                h.push(Hint::new("o", t!("hint.roles")));
+            }
             if self.can_delete(ctx) {
                 h.push(Hint::new("ctrl-d", t!("hint.delete")));
             }
@@ -123,6 +129,13 @@ impl View for DetailView {
                 _ => Outcome::None,
             },
             KeyCode::Char('d') if ctrl && self.can_delete(ctx) => actions::delete(vec![self.href.clone()], ctx, true),
+            KeyCode::Char('m') => match admin::ActionMenuView::for_resource(&self.href, self.title(), ctx) {
+                Some(menu) => Outcome::Overlay(Box::new(menu)),
+                None => Outcome::None,
+            },
+            KeyCode::Char('o') if admin::can_manage_roles(&self.href, ctx) => {
+                Outcome::Push(Box::new(admin::RolesView::new(self.href.clone(), self.title())))
+            }
             _ => Outcome::Ignored,
         }
     }
@@ -152,6 +165,24 @@ impl View for DetailView {
                         );
                         lines.push(LineItem::plain(""));
                     }
+                }
+                // Nested collections (group members and roles, user roles, versions…).
+                if let (Some(t), Some(reg)) = (self.resource_type(ctx), ctx.registry())
+                    && !t.children.is_empty()
+                {
+                    let title = Line::styled(
+                        t!("detail.collections").into_owned(),
+                        ctx.theme.accent().add_modifier(Modifier::BOLD),
+                    );
+                    lines.push(LineItem::plain(title));
+                    for child in t.children.iter().filter_map(|c| reg.get(c)) {
+                        let sub = child.parent.as_ref().map(|(_, s)| s.as_str()).unwrap_or_default();
+                        lines.push(LineItem {
+                            line: Line::raw(format!("  {}", crate::labels::titleize(&child.name))),
+                            href: Some(format!("{}{sub}", self.href)),
+                        });
+                    }
+                    lines.push(LineItem::plain(""));
                 }
                 // Rebuilt each frame so names resolved later show up.
                 lines.extend(json_lines(data, ctx));

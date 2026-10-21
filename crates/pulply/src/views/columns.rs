@@ -249,6 +249,44 @@ pub fn for_type(t: &ResourceType, schema: Option<&Schema>) -> Vec<Column> {
     let field = |key: &str, f: &str| Column::new(col(key), Field(f.into()));
     let preset: Vec<Column> = match (t.category.as_str(), t.name.as_str()) {
         ("tasks", _) => return tasks(),
+        // Role assignments of a user or group (`users/<id>/roles/`).
+        (_, "roles") if t.parent.is_some() => {
+            vec![Column::new("ROLE", Field("role".into())), Column::new("OBJECT", Href("content_object".into()))]
+        }
+        ("users", _) | (_, "users") => vec![
+            Column::new("USERNAME", Field("username".into())),
+            Column::new("FIRST NAME", Field("first_name".into())),
+            Column::new("LAST NAME", Field("last_name".into())),
+            Column::new("EMAIL", Field("email".into())),
+            Column::new("STAFF", Field("is_staff".into())),
+            Column::new("ACTIVE", Field("is_active".into())),
+        ],
+        ("roles", _) => vec![
+            field("name", "name"),
+            Column::new("LOCKED", Field("locked".into())),
+            Column::new("PERMISSIONS", Field("permissions".into())),
+            Column::new("DESCRIPTION", Field("description".into())),
+        ],
+        ("access_policies", _) => {
+            vec![
+                Column::new("VIEWSET", Field("viewset_name".into())),
+                Column::new("CUSTOMIZED", Field("customized".into())),
+            ]
+        }
+        ("upstream-pulps", _) => vec![
+            field("name", "name"),
+            field("url", "base_url"),
+            Column::new("LAST REPLICATION", Age("last_replication".into())),
+        ],
+        ("task-schedules", _) => vec![
+            field("name", "name"),
+            Column::new("TASK", Field("task_name".into())),
+            Column::new("INTERVAL", Field("dispatch_interval".into())),
+            Column::new("NEXT", Age("next_dispatch".into())),
+        ],
+        ("signing-services", _) => {
+            vec![field("name", "name"), Column::new("FINGERPRINT", Field("pubkey_fingerprint".into()))]
+        }
         (_, "versions") => vec![
             field("version", "number"),
             Column::new(col("content"), Summary),

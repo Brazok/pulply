@@ -10,6 +10,8 @@ pub enum Target {
     /// Registry type id (`repositories/rpm/rpm`, `tasks`).
     Resource(String),
     Help,
+    /// Connected user and its permissions.
+    Me,
     Quit,
     RefreshSchema,
     /// Global operation form (`tasks/purge/`, `orphans/cleanup/`, `repositories/reclaim_space/`, `repair/`).
@@ -74,7 +76,7 @@ const ALIASES: &[(&str, &[&str])] = &[
 ];
 
 const BUILTINS: &[&str] =
-    &["dashboard", "ctx", "help", "quit", "refresh-schema", "purge", "orphans", "reclaim", "repair"];
+    &["dashboard", "ctx", "help", "me", "quit", "refresh-schema", "purge", "orphans", "reclaim", "repair"];
 
 fn canonical(word: &str) -> Option<&'static str> {
     ALIASES.iter().find(|(_, al)| al.contains(&word)).map(|(c, _)| *c)
@@ -96,6 +98,7 @@ pub fn parse(input: &str, reg: Option<&Registry>) -> Result<Target, String> {
         }
         "q" | "q!" | "quit" | "exit" => return Ok(Target::Quit),
         "help" | "?" => return Ok(Target::Help),
+        "me" | "whoami" => return Ok(Target::Me),
         "refresh-schema" => return Ok(Target::RefreshSchema),
         "purge" | "task-purge" => return Ok(Target::Operation(Op::Purge)),
         "orphans" | "orphan" => return Ok(Target::Operation(Op::Orphans)),

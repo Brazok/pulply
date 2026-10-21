@@ -16,7 +16,8 @@ use serde_json::Value;
 
 use super::columns::{self, Column, SortValue};
 use super::{
-    Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, diff, form, summary, task, upload, xray,
+    Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, admin, detail, diff, form, summary, task, upload,
+    xray,
 };
 use crate::format;
 use crate::labels;
@@ -72,6 +73,9 @@ pub struct ListView {
     type_id: Option<String>,
     /// Picker mode: Enter returns the selection instead of opening it.
     pick: Option<Pick>,
+    /// Nested collection created through its parent's POST action (group members,
+    /// user roles): request body schema.
+    nested_create: Option<String>,
 }
 
 enum Pick {
@@ -126,6 +130,7 @@ impl ListView {
             marked: HashSet::new(),
             type_id: t.map(|t| t.id.clone()),
             pick: None,
+            nested_create: None,
         }
     }
 
@@ -207,7 +212,16 @@ impl ListView {
         let sub = child.parent.as_ref().map(|(_, s)| s.as_str()).unwrap_or_default();
         let owner = format::href(owner_href, ctx.names);
         let title = format!("{owner} · {}", labels::titleize(&child.name));
-        Self::new(title, format!("{owner_href}{sub}"), Vec::new(), Some(child), Some(reg))
+        let mut list = Self::new(title, format!("{owner_href}{sub}"), Vec::new(), Some(child), Some(reg));
+        list.nested_create = child
+            .parent
+            .as_ref()
+            .and_then(|(parent, _)| reg.get(parent))
+            .and_then(|p| {
+                p.actions.iter().find(|a| a.verb == child.name && a.method == pulply_api::registry::Method::Post)
+            })
+            .and_then(|a| a.body_schema.clone());
+        list
     }
 
     /// List at an API URL carrying a query (content summary links).
@@ -351,17 +365,34 @@ impl ListView {
         ctx.registry()?.type_for_href(self.selected()?.href()?)
     }
 
+    /// Rows of a membership collection (group users) are the members themselves
+    /// (`/users/2/`); removing one targets the membership (`/groups/1/users/2/`).
+    fn foreign_member(&self, href: &str) -> bool {
+        self.nested_create.is_some() && !href.starts_with(&self.path)
+    }
+
+    fn delete_target(&self, href: &str) -> String {
+        if self.foreign_member(href) {
+            let id = href.trim_end_matches('/').rsplit('/').next().unwrap_or_default();
+            format!("{}{id}/", self.path)
+        } else {
+            href.to_owned()
+        }
+    }
+
     /// The resource under the cursor supports DELETE.
     fn can_delete(&self, ctx: &Ctx) -> bool {
-        self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_on("delete", h, ctx))
+        self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_on("delete", &self.delete_target(h), ctx))
     }
 
     fn can_edit(&self, ctx: &Ctx) -> bool {
-        self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_on("change", h, ctx))
+        self.selected()
+            .and_then(|r| r.href())
+            .is_some_and(|h| !self.foreign_member(h) && actions::can_on("change", h, ctx))
     }
 
     fn can_create(&self, ctx: &Ctx) -> bool {
-        self.own_type(ctx).is_some_and(|t| actions::can_create(t, ctx))
+        self.nested_create.is_some() || self.own_type(ctx).is_some_and(|t| actions::can_create(t, ctx))
     }
 
     /// Versions to diff: the two marked ones, or the selected version and its predecessor.
@@ -547,6 +578,14 @@ impl View for ListView {
                     h.push(Hint::new("r", t!("hint.remove_content")));
                 }
             }
+            if let Some(href) = self.selected().and_then(|r| r.href()) {
+                if admin::has_actions(href, ctx) {
+                    h.push(Hint::new("m", t!("hint.actions")));
+                }
+                if admin::can_manage_roles(href, ctx) {
+                    h.push(Hint::new("o", t!("hint.roles")));
+                }
+            }
             h.push(Hint::new("space", t!("hint.mark")));
             if self.kind == Kind::Tasks {
                 h.push(Hint::new("ctrl-k", t!("hint.cancel_task")));
@@ -579,13 +618,21 @@ impl View for ListView {
                 self.task_state = (self.task_state + 1) % TASK_STATES.len();
                 Outcome::Fetch(FetchKind::Refresh)
             }
-            KeyCode::Char('c') if self.can_create(ctx) => match (ctx.registry(), self.own_type(ctx)) {
-                (Some(reg), Some(t)) => match form::FormView::create(t, reg) {
+            KeyCode::Char('c') if self.can_create(ctx) => {
+                let Some(reg) = ctx.registry() else { return Outcome::None };
+                if let Some(schema) = &self.nested_create {
+                    let title = t!("form.create", what = self.title).into_owned();
+                    let label = t!("action.create", name = self.title).into_owned();
+                    let plugin = self.own_type(ctx).map(|t| t.plugin.clone()).unwrap_or_default();
+                    let form =
+                        form::FormView::action(title, label, self.path.clone(), reg.schema(schema), reg, &plugin);
+                    return Outcome::Push(Box::new(form));
+                }
+                match self.own_type(ctx).and_then(|t| form::FormView::create(t, reg)) {
                     Some(f) => Outcome::Push(Box::new(f)),
                     None => Outcome::None,
-                },
-                _ => Outcome::None,
-            },
+                }
+            }
             KeyCode::Char('e') if self.can_edit(ctx) => {
                 self.selected().and_then(|r| r.href()).map_or(Outcome::None, |h| Outcome::EditExternal(h.to_owned()))
             }
@@ -655,9 +702,24 @@ impl View for ListView {
                 let Some((types, repo)) = self.upload_target(ctx) else { return Outcome::None };
                 Outcome::Push(Box::new(upload::FilePickerView::new(types, repo)))
             }
+            KeyCode::Char('m') if self.selected().and_then(|r| r.href()).is_some() => {
+                let Some(href) = self.selected().and_then(|r| r.href()) else { return Outcome::None };
+                let name = admin::display_name(self.selected(), href, ctx);
+                match admin::ActionMenuView::for_resource(href, name, ctx) {
+                    Some(menu) => Outcome::Overlay(Box::new(menu)),
+                    None => Outcome::None,
+                }
+            }
+            KeyCode::Char('o')
+                if self.selected().and_then(|r| r.href()).is_some_and(|h| admin::can_manage_roles(h, ctx)) =>
+            {
+                let Some(href) = self.selected().and_then(|r| r.href()) else { return Outcome::None };
+                let name = admin::display_name(self.selected(), href, ctx);
+                Outcome::Push(Box::new(admin::RolesView::new(href.to_owned(), name)))
+            }
             KeyCode::Char(' ') => self.toggle_mark(),
             KeyCode::Char('d') if ctrl && self.kind != Kind::Tasks && self.can_delete(ctx) => {
-                actions::delete(self.selection(), ctx, false)
+                actions::delete(self.selection().iter().map(|h| self.delete_target(h)).collect(), ctx, false)
             }
             KeyCode::Char('k') if ctrl && self.kind == Kind::Tasks => {
                 let active: Vec<String> = self

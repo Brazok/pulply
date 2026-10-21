@@ -75,6 +75,11 @@ list:
   pick_repository: "Add %{count} units to repository…"
 
 hint:
+  run: run
+  actions: actions
+  roles: roles
+  add_role: add role
+  remove_role: remove role
   open: open
   describe: describe
   filter: filter
@@ -163,6 +168,7 @@ confirm:
   cancel: "Cancel %{what}?"
   rollback: "Create a new version of %{repo} with the content of %{version}?"
   remove_content: "Remove %{what} from %{repo}?"
+  action: "Run %{verb} on %{name}?"
 
 action:
   delete: "delete %{name}"
@@ -177,6 +183,7 @@ action:
   add_content: "add %{count} units to %{name}"
   remove_content: "remove %{count} units from %{name}"
   upload: "upload %{name}"
+  run: "%{verb} %{name}"
 
 form:
   create: "New · %{what}"
@@ -308,6 +315,20 @@ upload:
 
 detail:
   usage: Usage
+  collections: Collections
+
+admin:
+  actions: "Actions · %{name}"
+  action_title: "%{verb} · %{name}"
+  roles_title: "Roles · %{name}"
+  no_roles: No role assigned on this resource
+  me: Current user
+  user: User
+  access: Access
+  access_all: everything (staff or filtering disabled)
+  access_limited: "%{count} global permissions + object roles"
+  access_objects: object roles only (global permissions unreadable)
+  no_details: No details readable
 
 summary:
   title: Content

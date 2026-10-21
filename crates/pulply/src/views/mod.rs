@@ -2,6 +2,7 @@
 //! fetch, and receives the result; the app runs fetches off the render loop.
 
 pub mod actions;
+pub mod admin;
 pub mod columns;
 pub mod confirm;
 pub mod connect;

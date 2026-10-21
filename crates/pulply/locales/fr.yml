@@ -75,6 +75,11 @@ list:
   pick_repository: "Ajouter %{count} unités au dépôt…"
 
 hint:
+  run: exécuter
+  actions: actions
+  roles: rôles
+  add_role: ajouter un rôle
+  remove_role: retirer un rôle
   open: ouvrir
   describe: décrire
   filter: filtrer
@@ -163,6 +168,7 @@ confirm:
   cancel: "Annuler %{what} ?"
   rollback: "Créer une nouvelle version de %{repo} avec le contenu de %{version} ?"
   remove_content: "Retirer %{what} de %{repo} ?"
+  action: "Exécuter %{verb} sur %{name} ?"
 
 action:
   delete: "suppression de %{name}"
@@ -177,6 +183,7 @@ action:
   add_content: "ajout de %{count} unités à %{name}"
   remove_content: "retrait de %{count} unités de %{name}"
   upload: "téléversement de %{name}"
+  run: "%{verb} %{name}"
 
 form:
   create: "Nouveau · %{what}"
@@ -308,6 +315,20 @@ upload:
 
 detail:
   usage: Utilisation
+  collections: Collections
+
+admin:
+  actions: "Actions · %{name}"
+  action_title: "%{verb} · %{name}"
+  roles_title: "Rôles · %{name}"
+  no_roles: Aucun rôle attribué sur cette ressource
+  me: Utilisateur courant
+  user: Utilisateur
+  access: Accès
+  access_all: tout (staff ou filtrage désactivé)
+  access_limited: "%{count} permissions globales + rôles d'objet"
+  access_objects: rôles d'objet uniquement (permissions globales illisibles)
+  no_details: Aucun détail lisible
 
 summary:
   title: Contenu
