@@ -61,7 +61,7 @@ base_url = "http://localhost:8080"
 username = "admin"
 password = "password"
 api_root = "/pulp/"        # default
-domain = "acme"            # optional, for domain-enabled servers
+domain = "acme"            # optional, ignored unless the server enables domains ("default" then)
 ```
 
 CLI flags: `--context`, `--config`, `--readonly`, `-c/--command`, `--refresh`, `-l/--log-level`.

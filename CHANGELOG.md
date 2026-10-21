@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `status/` is read outside the domain, and the configured `domain` only scopes URLs when the server
+  has domains enabled (`default` when unset), as pulp-cli does; an ignored domain is notified.
+
 ## 0.1.0 - 2026-10-21
 
 First release.

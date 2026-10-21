@@ -61,4 +61,4 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 ## Correctifs
 
-- [ ] Domaine appliqué seulement si le serveur a les domaines activés, `status/` lu hors domaine, notification si un domaine configuré est ignoré — R1.8, R1.9, R2.1
+- [x] Domaine appliqué seulement si le serveur a les domaines activés, `status/` lu hors domaine, notification si un domaine configuré est ignoré — R1.8, R1.9, R2.1
