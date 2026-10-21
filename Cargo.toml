@@ -6,8 +6,8 @@ members = ["crates/pulply-api", "crates/pulply"]
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/pulply/pulply"
-homepage = "https://github.com/pulply/pulply"
+repository = "https://github.com/brazok/pulply"
+homepage = "https://github.com/brazok/pulply"
 authors = ["pulply contributors"]
 rust-version = "1.88"
 

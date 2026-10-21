@@ -10,7 +10,7 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell", "homebrew"]
 # A GitHub repo to push Homebrew formulas to
-tap = "pulply/homebrew-tap"
+tap = "brazok/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
     "aarch64-apple-darwin",
@@ -26,7 +26,10 @@ install-path = "CARGO_HOME"
 install-updater = false
 # .deb / .rpm packages built and attached to the release (.github/workflows/build-packages.yml)
 global-artifacts-jobs = ["./build-packages"]
-# Publish jobs to run in CI: Homebrew tap, crates.io, OCI image
-publish-jobs = ["homebrew", "./publish-crates", "./publish-image"]
+# Publish jobs to run in CI: crates.io only for now.
+# Homebrew tap and OCI image (.github/workflows/publish-image.yml) are disabled; to re-enable:
+#   publish-jobs = ["homebrew", "./publish-crates", "./publish-image"]
+# then run `dist generate` to update release.yml.
+publish-jobs = ["./publish-crates"]
 # Permissions of the custom publish jobs (checkout + push to ghcr.io)
 github-custom-job-permissions = { "publish-image" = { contents = "read", packages = "write" }, "publish-crates" = { contents = "read" } }
