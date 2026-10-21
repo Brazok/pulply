@@ -240,6 +240,9 @@ ctx:
   readonly: read-only
   readwrite: read-write
 
+error:
+  forbidden: "Permission denied: your user is not allowed to do this"
+
 dash:
   title: Dashboard
   health: Health

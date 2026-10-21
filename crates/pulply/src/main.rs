@@ -7,6 +7,7 @@ mod format;
 mod labels;
 mod logging;
 mod names;
+mod perms;
 mod session;
 #[cfg(test)]
 mod testutil;

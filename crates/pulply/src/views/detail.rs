@@ -42,7 +42,11 @@ impl DetailView {
     }
 
     fn can_delete(&self, ctx: &Ctx) -> bool {
-        self.resource_type(ctx).is_some_and(|t| t.ops.delete)
+        actions::can_on("delete", &self.href, ctx)
+    }
+
+    fn can_edit(&self, ctx: &Ctx) -> bool {
+        actions::can_on("change", &self.href, ctx)
     }
 }
 
@@ -83,7 +87,7 @@ impl View for DetailView {
             h.push(Hint::new("X", t!("hint.xray")));
         }
         if !ctx.readonly() {
-            if self.resource_type(ctx).is_some_and(|t| t.ops.partial_update) {
+            if self.can_edit(ctx) {
                 h.push(Hint::new("u", t!("hint.edit")));
                 h.push(Hint::new("e", t!("hint.yaml")));
             }
@@ -110,10 +114,8 @@ impl View for DetailView {
             KeyCode::Char('X') if xray::supports(&self.href) => {
                 Outcome::Push(Box::new(xray::XrayView::new(self.href.clone())))
             }
-            KeyCode::Char('e') if self.resource_type(ctx).is_some_and(|t| t.ops.partial_update) => {
-                Outcome::EditExternal(self.href.clone())
-            }
-            KeyCode::Char('u') => match (ctx.registry(), self.resource_type(ctx)) {
+            KeyCode::Char('e') if self.can_edit(ctx) => Outcome::EditExternal(self.href.clone()),
+            KeyCode::Char('u') if self.can_edit(ctx) => match (ctx.registry(), self.resource_type(ctx)) {
                 (Some(reg), Some(t)) => match form::FormView::edit(t, &self.href, &self.title(), reg) {
                     Some(f) => Outcome::Push(Box::new(f)),
                     None => Outcome::None,
@@ -173,11 +175,12 @@ impl View for DetailView {
                 self.resolved = true;
                 self.label = Some(v.name().map(str::to_owned).unwrap_or_else(|| format::href(&self.href, ctx.names)));
                 self.data = Some(v);
-                if resolve.is_empty() { Outcome::None } else { Outcome::Resolve(resolve) }
+                let names = if resolve.is_empty() { Outcome::None } else { Outcome::Resolve(resolve) };
+                Outcome::Batch(vec![names, ctx.perm_request(Some(&self.href))])
             }
             Ok(_) => Outcome::None,
             Err(e) => {
-                self.error = Some(e.to_string());
+                self.error = Some(super::error_text(&e));
                 Outcome::None
             }
         }

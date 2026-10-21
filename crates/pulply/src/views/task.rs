@@ -262,7 +262,7 @@ impl View for TaskView {
             }
             Ok(_) => Outcome::None,
             Err(e) => {
-                self.error = Some(e.to_string());
+                self.error = Some(super::error_text(&e));
                 Outcome::None
             }
         }

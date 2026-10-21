@@ -8,6 +8,7 @@ use pulply_api::{Error, PulpClient, Registry, Status};
 use sha2::{Digest, Sha256};
 
 use crate::config::{ContextConfig, Credentials};
+use crate::perms::{self, Permissions};
 
 pub struct Session {
     pub client: PulpClient,
@@ -15,22 +16,29 @@ pub struct Session {
     /// Loaded in the background after connect.
     pub registry: Option<Arc<Registry>>,
     pub refresh: Duration,
+    pub perms: Permissions,
 }
 
-/// Builds the client, reads `status/` and validates credentials against `login/`.
-pub async fn connect(
-    cfg: &ContextConfig,
-    creds: Option<Credentials>,
-    readonly: bool,
-) -> Result<(PulpClient, Status), Error> {
+pub struct Connected {
+    pub client: PulpClient,
+    pub status: Status,
+    pub perms: Permissions,
+}
+
+/// Builds the client, reads `status/`, validates credentials against `login/` and
+/// loads the user's permissions.
+pub async fn connect(cfg: &ContextConfig, creds: Option<Credentials>, readonly: bool) -> Result<Connected, Error> {
     let has_creds = creds.is_some();
     let client_cfg = cfg.client_config(creds, readonly).map_err(|e| Error::Config(e.to_string()))?;
     let client = PulpClient::new(client_cfg)?;
     let status = client.status().await?;
-    if has_creds {
+    let perms = if has_creds {
         client.get(&client.api_path("login/"), &[]).await?;
-    }
-    Ok((client, status))
+        if cfg.rbac_filter.unwrap_or(true) { perms::load(&client).await } else { Permissions::default() }
+    } else {
+        Permissions::default()
+    };
+    Ok(Connected { client, status, perms })
 }
 
 fn cache_dir() -> Option<PathBuf> {

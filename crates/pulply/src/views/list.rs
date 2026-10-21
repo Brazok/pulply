@@ -29,6 +29,8 @@ const PREFETCH_MARGIN: usize = 10;
 const TASK_STATES: [&str; 7] = ["", "running", "waiting", "failed", "completed", "canceled", "skipped"];
 /// Max hrefs sent for name resolution per page.
 const MAX_RESOLVE: usize = 25;
+/// Max rows whose object permissions are requested per page (cursor moves cover the rest).
+const MAX_PERM_REQUESTS: usize = 100;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -351,7 +353,15 @@ impl ListView {
 
     /// The resource under the cursor supports DELETE.
     fn can_delete(&self, ctx: &Ctx) -> bool {
-        self.selected_type(ctx).is_some_and(|t| t.ops.delete)
+        self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_on("delete", h, ctx))
+    }
+
+    fn can_edit(&self, ctx: &Ctx) -> bool {
+        self.selected().and_then(|r| r.href()).is_some_and(|h| actions::can_on("change", h, ctx))
+    }
+
+    fn can_create(&self, ctx: &Ctx) -> bool {
+        self.own_type(ctx).is_some_and(|t| actions::can_create(t, ctx))
     }
 
     /// Versions to diff: the two marked ones, or the selected version and its predecessor.
@@ -372,7 +382,8 @@ impl ListView {
         let reg = ctx.registry()?;
         let own = self.own_type(ctx)?;
         if own.category == "content" {
-            let capable = upload::upload_types(&own.plugin, reg).iter().any(|t| t.id == own.id);
+            let capable =
+                upload::upload_types(&own.plugin, reg).iter().any(|t| t.id == own.id) && actions::can_create(own, ctx);
             let repo = self.version_context().map(|(_, repo)| repo.to_owned());
             return capable.then(|| (vec![own.id.clone()], repo));
         }
@@ -381,7 +392,14 @@ impl ListView {
         if t.category != "repositories" || pulply_api::models::version_number(href).is_some() {
             return None;
         }
-        let types: Vec<String> = upload::upload_types(&t.plugin, reg).iter().map(|t| t.id.clone()).collect();
+        if !actions::can_modify(href, ctx) {
+            return None;
+        }
+        let types: Vec<String> = upload::upload_types(&t.plugin, reg)
+            .iter()
+            .filter(|t| actions::can_create(t, ctx))
+            .map(|t| t.id.clone())
+            .collect();
         (!types.is_empty()).then(|| (types, Some(href.to_owned())))
     }
 
@@ -496,10 +514,10 @@ impl View for ListView {
             h.push(Hint::new("X", t!("hint.xray")));
         }
         if !ctx.readonly() {
-            if self.own_type(ctx).is_some_and(|t| t.ops.create) {
+            if self.can_create(ctx) {
                 h.push(Hint::new("c", t!("hint.create")));
             }
-            if self.selected_type(ctx).is_some_and(|t| t.ops.partial_update) {
+            if self.can_edit(ctx) {
                 h.push(Hint::new("u", t!("hint.edit")));
                 h.push(Hint::new("e", t!("hint.yaml")));
             }
@@ -542,7 +560,8 @@ impl View for ListView {
 
     fn handle_key(&mut self, key: KeyEvent, ctx: &Ctx) -> Outcome {
         if let Some(o) = self.move_cursor(key) {
-            return o;
+            // Object permissions of the newly selected resource drive the actions shown.
+            return Outcome::Batch(vec![o, ctx.perm_request(self.selected().and_then(|r| r.href()))]);
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         if self.pick.is_some() {
@@ -560,17 +579,17 @@ impl View for ListView {
                 self.task_state = (self.task_state + 1) % TASK_STATES.len();
                 Outcome::Fetch(FetchKind::Refresh)
             }
-            KeyCode::Char('c') => match (ctx.registry(), self.own_type(ctx)) {
+            KeyCode::Char('c') if self.can_create(ctx) => match (ctx.registry(), self.own_type(ctx)) {
                 (Some(reg), Some(t)) => match form::FormView::create(t, reg) {
                     Some(f) => Outcome::Push(Box::new(f)),
                     None => Outcome::None,
                 },
                 _ => Outcome::None,
             },
-            KeyCode::Char('e') if self.selected_type(ctx).is_some_and(|t| t.ops.partial_update) => {
+            KeyCode::Char('e') if self.can_edit(ctx) => {
                 self.selected().and_then(|r| r.href()).map_or(Outcome::None, |h| Outcome::EditExternal(h.to_owned()))
             }
-            KeyCode::Char('u') => {
+            KeyCode::Char('u') if self.can_edit(ctx) => {
                 let (Some(reg), Some(t), Some(row)) = (ctx.registry(), self.selected_type(ctx), self.selected()) else {
                     return Outcome::None;
                 };
@@ -759,10 +778,14 @@ impl View for ListView {
                     }
                     FetchKind::More => self.rows.extend(page.results),
                 }
+                // Object permissions of the loaded rows (no-op for unfiltered users).
+                let mut outcomes: Vec<Outcome> =
+                    self.rows.iter().take(MAX_PERM_REQUESTS).map(|r| ctx.perm_request(r.href())).collect();
                 let resolve = self.unresolved_hrefs(ctx);
                 if !resolve.is_empty() {
-                    return Outcome::Resolve(resolve);
+                    outcomes.push(Outcome::Resolve(resolve));
                 }
+                return Outcome::Batch(outcomes);
             }
             Ok(_) => {}
             // Some plugin endpoints crash on `?fields=` (deb source_packages, gem): retry without it.
@@ -770,7 +793,7 @@ impl View for ListView {
                 self.fields_param = false;
                 return Outcome::Fetch(kind);
             }
-            Err(e) => self.error = Some(e.to_string()),
+            Err(e) => self.error = Some(super::error_text(&e)),
         }
         Outcome::None
     }

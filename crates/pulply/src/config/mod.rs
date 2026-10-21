@@ -25,6 +25,8 @@ pub struct ContextConfig {
     pub timeout: Option<u64>,
     pub readonly: bool,
     pub refresh: Option<u64>,
+    /// Hide actions the user lacks permissions for (default true).
+    pub rbac_filter: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

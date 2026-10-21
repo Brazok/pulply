@@ -530,7 +530,7 @@ impl View for FormView {
                 }
             }
             Ok(_) => {}
-            Err(e) => self.general = Some(e.to_string()),
+            Err(e) => self.general = Some(super::error_text(&e)),
         }
         Outcome::None
     }
@@ -556,7 +556,7 @@ impl View for FormView {
                 Outcome::None
             }
             Err(e) => {
-                self.general = Some(e.to_string());
+                self.general = Some(super::error_text(e));
                 Outcome::None
             }
         }

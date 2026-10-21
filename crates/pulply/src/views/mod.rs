@@ -84,6 +84,27 @@ impl Ctx<'_> {
     pub fn readonly(&self) -> bool {
         self.client().is_none_or(PulpClient::readonly)
     }
+
+    /// May the user perform `action` on `model`, globally or on `href` (R12.3)?
+    pub fn allowed(&self, action: &str, model: Option<&str>, href: Option<&str>) -> bool {
+        self.session.is_none_or(|s| s.perms.allows(action, model, href))
+    }
+
+    /// Request for the object permissions of `href` when they are not known yet.
+    pub fn perm_request(&self, href: Option<&str>) -> Outcome {
+        match (self.session, href) {
+            (Some(s), Some(h)) if s.perms.needs(h) => Outcome::Permissions(h.to_owned()),
+            _ => Outcome::None,
+        }
+    }
+}
+
+/// Text for an API error, with a dedicated message for permission refusals (R12.3).
+pub fn error_text(e: &Error) -> String {
+    match e {
+        Error::Forbidden => rust_i18n::t!("error.forbidden").into_owned(),
+        other => other.to_string(),
+    }
 }
 
 /// Follow-up once the task spawned by a mutation completes.
@@ -140,6 +161,8 @@ pub enum Outcome {
     Retry,
     /// Fetch display names for these hrefs.
     Resolve(Vec<String>),
+    /// Load the object permissions of this href (`my_permissions/`).
+    Permissions(String),
     Mutate(Mutation),
     /// Hand a value to the view with this id (picker result for a form field).
     Deliver {

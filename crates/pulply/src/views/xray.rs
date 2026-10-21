@@ -278,7 +278,7 @@ impl View for XrayView {
         match result {
             Ok(Payload::Xray(tree)) => self.tree = Some(*tree),
             Ok(_) => {}
-            Err(e) => self.error = Some(e.to_string()),
+            Err(e) => self.error = Some(super::error_text(&e)),
         }
         Outcome::None
     }

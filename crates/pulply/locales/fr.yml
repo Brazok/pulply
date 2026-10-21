@@ -240,6 +240,9 @@ ctx:
   readonly: lecture seule
   readwrite: lecture-écriture
 
+error:
+  forbidden: "Permission refusée : votre utilisateur n'a pas ce droit"
+
 dash:
   title: Tableau de bord
   health: Santé

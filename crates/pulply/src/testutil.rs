@@ -29,7 +29,13 @@ pub fn session(readonly: bool) -> Session {
         readonly,
     })
     .unwrap();
-    Session { client, status: Status::default(), registry: Some(Arc::new(registry())), refresh: Duration::from_secs(5) }
+    Session {
+        client,
+        status: Status::default(),
+        registry: Some(Arc::new(registry())),
+        refresh: Duration::from_secs(5),
+        perms: crate::perms::Permissions::default(),
+    }
 }
 
 pub fn config() -> Config {

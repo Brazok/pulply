@@ -9,7 +9,7 @@ use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyM
 use futures::StreamExt;
 use futures::future::join_all;
 use pulply_api::models::task_href;
-use pulply_api::{Error, PulpClient, Registry, ResourceExt, Status};
+use pulply_api::{Error, Registry, ResourceExt};
 use ratatui::DefaultTerminal;
 use rust_i18n::t;
 use serde_json::Value;
@@ -32,7 +32,7 @@ use crate::views::dashboard::DashboardView;
 use crate::views::list::ListView;
 use crate::views::task::{TaskView, is_active};
 use crate::views::upload::{FileProgress, Phase, UploadJob, UploadView, shared_progress};
-use crate::views::{AfterTask, FetchKind, Level, Mutation, Outcome, Payload, View};
+use crate::views::{AfterTask, FetchKind, Level, Mutation, Outcome, Payload, View, error_text};
 
 /// Builds a [`crate::views::Ctx`] from disjoint fields so a view can be borrowed mutably alongside.
 macro_rules! ctx {
@@ -104,7 +104,7 @@ pub struct Tracked {
 }
 
 enum Msg {
-    Connected { generation: u64, result: Result<(PulpClient, Status), Error> },
+    Connected { generation: u64, result: Result<session::Connected, Error> },
     Registry { generation: u64, result: Result<Registry, Error> },
     Data { generation: u64, view: u64, kind: FetchKind, result: Result<Payload, Error> },
     Names { generation: u64, entries: Vec<(String, String)> },
@@ -112,6 +112,7 @@ enum Msg {
     Mutated { generation: u64, mutation: Mutation, result: Result<Value, Error> },
     Tracked { generation: u64, results: Vec<(String, Result<Value, Error>)> },
     Notice { generation: u64, level: Level, text: String },
+    Perms { generation: u64, href: String, perms: HashSet<String> },
 }
 
 pub struct Options {
@@ -394,21 +395,54 @@ impl App {
             }
             Msg::Tracked { generation, results } if generation == self.generation => self.on_tracked(results),
             Msg::Notice { generation, level, text } if generation == self.generation => self.notify(level, text),
+            Msg::Perms { generation, href, perms } if generation == self.generation => {
+                if let Some(s) = &mut self.session {
+                    s.perms.record(href, perms);
+                }
+            }
             _ => {} // stale message from a previous context
         }
     }
 
-    fn on_connected(&mut self, result: Result<(PulpClient, Status), Error>) {
+    /// `my_permissions/` of `href` (object-level permissions), once per resource.
+    fn load_object_perms(&mut self, href: String) {
+        let Some(s) = &mut self.session else { return };
+        if !s.perms.needs(&href) {
+            return;
+        }
+        let supported =
+            s.registry.as_deref().and_then(|r| r.type_for_href(&href)).is_some_and(|t| t.has_action("my_permissions"));
+        if !supported {
+            s.perms.record(href, HashSet::new());
+            return;
+        }
+        s.perms.mark_pending(&href);
+        let (client, generation) = (s.client.clone(), self.generation);
+        self.spawn(async move {
+            let perms = client
+                .get(&format!("{href}my_permissions/"), &[])
+                .await
+                .ok()
+                .and_then(|v| v.get("permissions").and_then(Value::as_array).cloned())
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|p| p.as_str().map(str::to_owned))
+                .collect();
+            Msg::Perms { generation, href, perms }
+        });
+    }
+
+    fn on_connected(&mut self, result: Result<session::Connected, Error>) {
         let Some(ctx) = self.config.context(&self.ctx_name).cloned() else { return };
         let url = ctx.cfg.base_url.clone();
         match result {
-            Ok((client, status)) => {
+            Ok(session::Connected { client, status, perms }) => {
                 if !status.supported() {
                     let v = status.core_version().map(|v| v.to_string()).unwrap_or_else(|| "?".into());
                     self.notify(Level::Error, t!("notice.unsupported", version = v).into_owned());
                 }
                 let refresh = ctx.cfg.refresh(self.opts.refresh.unwrap_or(self.config.refresh));
-                self.session = Some(Session { client, status, registry: None, refresh });
+                self.session = Some(Session { client, status, registry: None, refresh, perms });
                 self.set_root(Box::new(DashboardView::new()));
                 self.active_target = Some(Target::Dashboard);
                 let start = self.opts.start.trim();
@@ -480,7 +514,7 @@ impl App {
                 }
             },
             Err(_) if handled => {}
-            Err(e) => self.notify(Level::Error, format!("{}: {e}", mutation.label)),
+            Err(e) => self.notify(Level::Error, format!("{}: {}", mutation.label, error_text(&e))),
         }
     }
 
@@ -509,7 +543,7 @@ impl App {
                 Ok(task) => task,
                 Err(e) => {
                     let t = self.tracked.remove(pos);
-                    self.notify(Level::Error, format!("{}: {e}", t.label));
+                    self.notify(Level::Error, format!("{}: {}", t.label, error_text(&e)));
                     continue;
                 }
             };
@@ -882,6 +916,7 @@ impl App {
             }
             Outcome::Retry => self.start_connect(self.ctx_name.clone()),
             Outcome::Resolve(hrefs) => self.resolve(hrefs),
+            Outcome::Permissions(href) => self.load_object_perms(href),
             Outcome::Mutate(m) => self.mutate(m),
             Outcome::Deliver { view, key, value } => {
                 if let Some(slot) = find_slot(&mut self.stack, &mut self.overlay, view) {

@@ -11,6 +11,7 @@ use super::{AfterTask, Ctx, Mutation, Outcome};
 use crate::commands::Op;
 use crate::format;
 use crate::labels::tr;
+use crate::perms::model_of_type;
 
 fn describe(hrefs: &[String], ctx: &Ctx) -> String {
     match hrefs {
@@ -128,10 +129,30 @@ fn push(form: Option<FormView>) -> Outcome {
     }
 }
 
-/// Can `href` be synced (repository whose type has a `sync` action)?
+/// Can `href` be synced (repository whose type has a `sync` action, user allowed)?
 pub fn can_sync(href: &str, ctx: &Ctx) -> bool {
     source_of(href) == Some(Source::Repository)
-        && ctx.registry().and_then(|r| r.type_for_href(href)).is_some_and(|t| t.has_action("sync"))
+        && ctx
+            .registry()
+            .and_then(|r| r.type_for_href(href))
+            .is_some_and(|t| t.has_action("sync") && ctx.allowed("sync", model_of_type(t).as_deref(), Some(href)))
+}
+
+/// The user may create resources of `t` (model-level `add_` permission).
+pub fn can_create(t: &ResourceType, ctx: &Ctx) -> bool {
+    t.ops.create && ctx.allowed("add", model_of_type(t).as_deref(), None)
+}
+
+/// The user may run `action` (`change`, `delete`, `manage_roles`…) on resource `href`.
+pub fn can_on(action: &str, href: &str, ctx: &Ctx) -> bool {
+    let Some(t) = ctx.registry().and_then(|r| r.type_for_href(href)) else { return false };
+    let supported = match action {
+        "change" => t.ops.partial_update,
+        "delete" => t.ops.delete,
+        "manage_roles" => t.has_action("list_roles"),
+        _ => true,
+    };
+    supported && ctx.allowed(action, model_of_type(t).as_deref(), Some(href))
 }
 
 /// Sync form (R8.1): remote pre-filled from the repository, plugin options from the schema.
@@ -163,7 +184,7 @@ fn publication_type<'a>(href: &str, reg: &'a Registry) -> Option<&'a ResourceTyp
 }
 
 pub fn can_publish(href: &str, ctx: &Ctx) -> bool {
-    ctx.registry().and_then(|r| publication_type(href, r)).is_some()
+    ctx.registry().and_then(|r| publication_type(href, r)).is_some_and(|t| can_create(t, ctx))
 }
 
 /// Publication form (R8.2) for a repository (latest version) or a specific version.
@@ -189,7 +210,7 @@ fn distribution_type<'a>(href: &str, reg: &'a Registry) -> Option<&'a ResourceTy
 }
 
 pub fn can_distribute(href: &str, ctx: &Ctx) -> bool {
-    ctx.registry().and_then(|r| distribution_type(href, r)).is_some()
+    ctx.registry().and_then(|r| distribution_type(href, r)).is_some_and(|t| can_create(t, ctx))
 }
 
 /// Distribution form (R8.3) serving a repository, version or publication; the base URL
@@ -213,9 +234,11 @@ pub fn distribute(href: &str, name: &str, ctx: &Ctx) -> Outcome {
     }))
 }
 
-/// The repository supports `modify/` (add/remove content, rollback).
+/// The repository supports `modify/` (add/remove content, rollback) and the user may use it.
 pub fn can_modify(repo: &str, ctx: &Ctx) -> bool {
-    ctx.registry().and_then(|r| r.type_for_href(repo)).is_some_and(|t| t.has_action("modify"))
+    ctx.registry()
+        .and_then(|r| r.type_for_href(repo))
+        .is_some_and(|t| t.has_action("modify") && ctx.allowed("modify", model_of_type(t).as_deref(), Some(repo)))
 }
 
 fn modify(repo: &str, body: Value, label: String) -> Mutation {

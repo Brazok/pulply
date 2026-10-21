@@ -363,7 +363,7 @@ impl View for DiffView {
         match (kind, result) {
             (_, Err(e)) => {
                 self.loading_detail = false;
-                self.error = Some(e.to_string());
+                self.error = Some(super::error_text(&e));
             }
             (_, Ok(Payload::Diff(data))) => self.data = Some(*data),
             (_, Ok(Payload::DiffDetail(lines))) => {
