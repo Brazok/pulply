@@ -15,7 +15,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::lines::{LineItem, LineList, json_lines};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, form, open_href, plugins};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, form, open_href, plugins, xray};
 use crate::format;
 use crate::names::NameCache;
 
@@ -79,6 +79,9 @@ impl View for DetailView {
 
     fn hints(&self, ctx: &Ctx) -> Vec<Hint> {
         let mut h = vec![Hint::new("↵", t!("hint.follow")), Hint::new("j/k", t!("hint.scroll"))];
+        if xray::supports(&self.href) {
+            h.push(Hint::new("X", t!("hint.xray")));
+        }
         if !ctx.readonly() {
             if self.resource_type(ctx).is_some_and(|t| t.ops.partial_update) {
                 h.push(Hint::new("u", t!("hint.edit")));
@@ -104,6 +107,9 @@ impl View for DetailView {
                 Some(view) => Outcome::Push(view),
                 None => Outcome::None,
             },
+            KeyCode::Char('X') if xray::supports(&self.href) => {
+                Outcome::Push(Box::new(xray::XrayView::new(self.href.clone())))
+            }
             KeyCode::Char('e') if self.resource_type(ctx).is_some_and(|t| t.ops.partial_update) => {
                 Outcome::EditExternal(self.href.clone())
             }

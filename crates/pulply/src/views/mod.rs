@@ -16,6 +16,7 @@ pub mod plugins;
 pub mod summary;
 pub mod task;
 pub mod upload;
+pub mod xray;
 
 use std::time::Duration;
 
@@ -44,6 +45,7 @@ pub enum Payload {
     Reachability(Vec<(String, Result<String, String>)>),
     Diff(Box<diff::DiffData>),
     DiffDetail(Vec<diff::DiffLine>),
+    Xray(Box<xray::Node>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

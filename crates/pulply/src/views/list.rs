@@ -15,7 +15,9 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::columns::{self, Column, SortValue};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, diff, form, summary, task, upload};
+use super::{
+    Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, diff, form, summary, task, upload, xray,
+};
 use crate::format;
 use crate::labels;
 
@@ -490,6 +492,9 @@ impl View for ListView {
         if self.diff_target().is_some() {
             h.push(Hint::new("x", t!("hint.diff")));
         }
+        if self.selected().and_then(|r| r.href()).is_some_and(xray::supports) {
+            h.push(Hint::new("X", t!("hint.xray")));
+        }
         if !ctx.readonly() {
             if self.own_type(ctx).is_some_and(|t| t.ops.create) {
                 h.push(Hint::new("c", t!("hint.create")));
@@ -597,6 +602,10 @@ impl View for ListView {
                     .unwrap_or_else(|| format::href(href, ctx.names));
                 actions::distribute(href, &name, ctx)
             }
+            KeyCode::Char('X') if self.selected().and_then(|r| r.href()).is_some_and(xray::supports) => self
+                .selected()
+                .and_then(|r| r.href())
+                .map_or(Outcome::None, |h| Outcome::Push(Box::new(xray::XrayView::new(h.to_owned())))),
             KeyCode::Char('x') if self.diff_target().is_some() => match self.diff_target() {
                 Some((a, b)) => Outcome::Push(Box::new(diff::DiffView::new(a, b))),
                 None => Outcome::None,
