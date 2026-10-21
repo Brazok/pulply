@@ -49,12 +49,12 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 ## M4 — Admin, personnalisation, i18n, distribution
 
-- [ ] Vues RBAC & admin, `:me`, gestion des 403 — R12
-- [ ] Skins (`dark`, `light`, par contexte) — R14.1
-- [ ] Hotkeys, alias, colonnes configurables — R14.2–R14.4
-- [ ] Plugins shell — R14.5
-- [ ] Traduction FR complète — R15.1
-- [ ] Release : cargo-dist, `.deb`, `.rpm`, Homebrew, image OCI, crates.io — R16.3
-- [ ] README (installation, config, raccourcis), captures
+- [x] Vues RBAC & admin, `:me`, gestion des 403 — R12. Colonnes users/groups/roles/access policies/upstream pulps/task schedules/signing services ; collections enfants (membres, rôles) liées depuis le describe, création et retrait de membres ; `o` : `list_roles` / `add_role` / `remove_role` ; `m` : toute action POST de la ressource (reset, replicate, exports, imports, set_label…). Les permissions effectives de `:me` se limitent à ce que l'utilisateur peut lire (un non-admin ne lit ni son utilisateur ni ses rôles par défaut).
+- [x] Skins (`dark`, `light`, par contexte) — R14.1. Skins embarqués dans `crates/pulply/skins/`, `inherit` pour n'en surcharger qu'une partie.
+- [x] Hotkeys, alias, colonnes configurables — R14.2–R14.4
+- [x] Plugins shell — R14.5. Variables aussi exportées en `PULPLY_<NOM>` ; au premier plan, retour à la TUI après Entrée.
+- [x] Traduction FR complète — R15.1
+- [x] Release : cargo-dist, `.deb`, `.rpm`, Homebrew, image OCI, crates.io — R16.3. Vérifié localement (`dist plan`, paquets deb/rpm, `cargo package --workspace`, image distroless de 6,5 Mo testée contre le conteneur) ; le workflow GitHub n'a pas encore tourné.
+- [x] README (installation, config, raccourcis), captures
 
 **Acceptation M4** : un utilisateur non admin voit uniquement les actions permises ; la release produit tous les artefacts.

@@ -12,8 +12,8 @@ pulply/
 ├── crates/
 │   ├── pulply-api/            # client HTTP, registre OpenAPI, modèles, tâches, upload
 │   └── pulply/                # binaire TUI (ratatui + crossterm)
-│       └── locales/           # en.yml, fr.yml (dans la crate pour être publiés sur crates.io)
-├── skins/                     # dark.toml, light.toml
+│       ├── locales/           # en.yml, fr.yml (dans la crate pour être publiés sur crates.io)
+│       └── skins/             # dark.toml, light.toml (embarqués, même raison)
 ├── deploy/compose.yml         # pulp/pulp pour dev + tests d'intégration
 └── docs/spec/
 ```
@@ -150,9 +150,13 @@ Progression par `watch::channel` → barre dans la TUI. Chunk par défaut : 6 Mi
 | `R` | rollback | `x` / `X` | diff / xray |
 | `U` | upload | `Ctrl-K` | cancel task |
 | `Ctrl-R` / `p` | refresh / pause | `Shift+lettre` | tri |
-| `q` / `Ctrl-C` | quitter | | |
+| `q` / `Ctrl-C` | quitter | `m` / `o` | menu des actions / rôles de la ressource |
 
 Les touches ne sont affichées que si l'action est disponible pour le type (`OpSet`) et permise (readonly, permissions).
+
+### Permissions (R12.3)
+
+`perms::load` à la connexion : utilisateur staff → aucun filtrage ; rôles globaux lisibles (`users/<id>/roles/` et ceux des groupes, sans `content_object`) → permissions globales ; sinon (politique Pulp par défaut pour un non-admin) permissions d'objet seules. Les permissions d'objet viennent de `<href>my_permissions/`, chargé à la sélection d'une ligne et à l'ouverture d'un describe ; tant qu'elles sont inconnues, l'action est masquée. La création n'est filtrée que si les permissions globales sont connues. Une 403 affiche « Permission refusée ». `rbac_filter = false` par contexte désactive le filtrage.
 
 ### Édition externe (R7.5)
 
@@ -186,7 +190,7 @@ username = "admin"
 password = "password"
 ```
 
-Fichiers annexes : `hotkeys.toml`, `aliases.toml`, `views.toml`, `plugins.toml`, `skins/*.toml` (R14).
+Fichiers annexes, dans le répertoire de `config.toml` (R14) : `hotkeys.toml` (touche → commande `:`, prioritaire sur les touches de vue), `aliases.toml` (premier mot de la commande), `views.toml` (colonnes par identifiant de type, chemins JSON pointés), `plugins.toml` (`[plugins.<nom>]` : `key`, `description`, `scopes`, `command`, `args`, `background`), `skins/*.toml` (couleurs du `Theme`, `inherit` d'un autre skin). Plugins au premier plan : `ratatui::restore()`, lecture des événements coupée, attente d'Entrée, puis `ratatui::init()`.
 
 ## 5. Dépendances principales
 
