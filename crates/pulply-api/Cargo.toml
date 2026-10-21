@@ -1,10 +1,16 @@
 [package]
 name = "pulply-api"
+description = "Async Pulp 3 REST client driven by the server's OpenAPI schema (used by pulply)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
 rust-version.workspace = true
+keywords = ["pulp", "api", "client", "openapi"]
+categories = ["api-bindings", "web-programming::http-client"]
+include = ["src/**/*", "tests/**/*", "LICENSE"]
 
 [dependencies]
 futures = "0.3.34"

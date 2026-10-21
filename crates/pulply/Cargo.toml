@@ -1,10 +1,17 @@
 [package]
 name = "pulply"
+description = "Terminal UI to observe and manage Pulp 3 servers, in the spirit of k9s"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
 rust-version.workspace = true
+readme = "README.md"
+keywords = ["pulp", "tui", "repository", "ratatui", "k9s"]
+categories = ["command-line-utilities"]
+include = ["src/**/*", "locales/*.yml", "skins/*.toml", "README.md", "LICENSE"]
 
 [dependencies]
 chrono = "0.4.45"
@@ -35,3 +42,28 @@ x509-parser = "0.18.1"
 flate2 = "1.1.10"
 insta = "1.49.0"
 tempfile = "3.27.0"
+
+[package.metadata.deb]
+maintainer = "pulply contributors"
+copyright = "pulply contributors"
+section = "admin"
+priority = "optional"
+extended-description = """\
+Terminal UI to observe and manage Pulp 3 servers: every resource type of every installed \
+plugin, tasks followed live, create/edit/delete, sync/publish/distribute workflows, \
+uploads, version diffs and RBAC-aware actions."""
+assets = [
+    ["target/release/pulply", "usr/bin/", "755"],
+    ["../../README.md", "usr/share/doc/pulply/README.md", "644"],
+    ["skins/*.toml", "usr/share/doc/pulply/skins/", "644"],
+]
+
+[package.metadata.generate-rpm]
+summary = "Terminal UI for Pulp 3, in the spirit of k9s"
+assets = [
+    { source = "target/release/pulply", dest = "/usr/bin/pulply", mode = "755" },
+    { source = "../../README.md", dest = "/usr/share/doc/pulply/README.md", mode = "644", doc = true },
+    { source = "../../LICENSE", dest = "/usr/share/licenses/pulply/LICENSE", mode = "644", doc = true },
+    { source = "skins/dark.toml", dest = "/usr/share/doc/pulply/skins/dark.toml", mode = "644", doc = true },
+    { source = "skins/light.toml", dest = "/usr/share/doc/pulply/skins/light.toml", mode = "644", doc = true },
+]
