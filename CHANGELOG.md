@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- Logs go to a single `pulply.log` rotated to `pulply.log.1` past 10 MB, instead of one file per day;
+  former daily files are removed at startup.
+
 ### Fixed
 
 - `status/` is read outside the domain, and the configured `domain` only scopes URLs when the server
