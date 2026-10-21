@@ -39,11 +39,11 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 ## M3 — Vues sur mesure + upload + diff + xray
 
-- [ ] Trait `PluginView` + résolution plugin → générique
-- [ ] Vues rpm, container, file, python, ansible, deb, ostree, certguard — R11.1–R11.8
-- [ ] `FilePickerView` + uploader par chunks + création de contenu + ajout au repo — R9
-- [ ] `DiffView` (résumé, consécutif, arbitraire) — R10.1, R10.2
-- [ ] `XrayView` — R10.3
+- [x] Trait `PluginView` (colonnes + lignes d'usage du describe) + résolution plugin → générique ; colonnes absentes du schéma ignorées
+- [x] Vues rpm (NEVRA, advisories, modulemd, arbres, groupes ; `dnf config-manager`), container (tags → manifest, manifests multi-arch avec nombre de manifests listés suivis via le describe, blobs ; `podman pull`), file, python (`pip --index-url`), ansible, deb, ostree, certguard (aperçu des certificats) — R11.1–R11.8. ostree n'est pas présent dans le conteneur de référence : sa vue n'est pas vérifiée contre un serveur réel. Options sync/publish rpm via les formulaires générés.
+- [x] `FilePickerView` + upload par chunks (`U`, taille `upload_chunk_size`) + création du contenu via `upload` (formulaire urlencoded) + ajout au dépôt — R9. Types sans champ `upload` (container, rôles ansible, hugging_face, sources deb) non téléversables depuis la TUI.
+- [x] `DiffView` (`x` : résumé, consécutif via `repository_version_added/removed`, arbitraire par différence d'ensembles ; détail limité à 200 unités par côté) — R10.1, R10.2
+- [x] `XrayView` (`X` : distribution → publication → version → dépôt → remote + content guard ; depuis un dépôt : remote, dernière version, publications et distributions qui le servent) — R10.3
 
 **Acceptation M3** : uploader un RPM et un fichier, les voir dans la vue rpm/file, faire le diff v(n-1)/v(n) et l'xray de la distribution.
 

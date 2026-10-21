@@ -6,8 +6,8 @@ Terminal UI to observe and manage [Pulp 3](https://pulpproject.org) servers, in 
 Every resource type exposed by the server (all installed plugins) is discovered from its OpenAPI
 schema and browsable from the sidebar or the `:` command line.
 
-Status: milestones M1 (observe) and M2 (create/edit/delete, workflows) done. See [`docs/spec/`](docs/spec/)
-for requirements, design and roadmap.
+Status: milestones M1 (observe), M2 (create/edit/delete, workflows) and M3 (plugin views, upload, diff,
+relations) done. See [`docs/spec/`](docs/spec/) for requirements, design and roadmap.
 
 ## Build
 
@@ -27,6 +27,7 @@ pulply reads `~/.config/pulply/config.toml` and imports every profile of pulp-cl
 language = "fr"            # optional, else system locale (fr / en)
 start_view = "dashboard"   # or any command, e.g. "repo rpm", "task"
 refresh = 5                # seconds
+upload_chunk_size = "6MiB" # chunk size for uploads
 import_pulp_cli = true
 default_context = "prod"
 
@@ -63,6 +64,8 @@ Browse:
 | `Ctrl-R` / `p` | refresh now / pause polling |
 | `[` / `]` | history back / forward |
 | `?` | help |
+| `x` | diff a version with its predecessor, or the two marked versions |
+| `X` | relations tree of a distribution, publication, version or repository |
 | `q` / `Ctrl-C` | quit |
 
 Manage (hidden and refused with `--readonly` or `readonly = true`):
@@ -75,6 +78,7 @@ Manage (hidden and refused with `--readonly` or `readonly = true`):
 | `s` / `P` / `D` | sync / publish / distribute a repository (`P`, `D` also on versions and publications) |
 | `R` | rollback: new version with the content of the selected version |
 | `a` / `r` | add content (from a version's content, or marked content to a chosen repository) / remove marked content |
+| `U` | upload local files (on a repository row or in a content list); content is created and added to the repository |
 | `Ctrl-K` | cancel task |
 | `:purge` `:orphans` `:reclaim` `:repair` | global operations, after confirmation |
 
