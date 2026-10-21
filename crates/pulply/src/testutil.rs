@@ -33,5 +33,12 @@ pub fn session(readonly: bool) -> Session {
 }
 
 pub fn config() -> Config {
-    Config { language: None, start_view: "dashboard".into(), refresh: 5, default_context: None, contexts: Vec::new() }
+    Config {
+        language: None,
+        start_view: "dashboard".into(),
+        refresh: 5,
+        upload_chunk_size: 6 << 20,
+        default_context: None,
+        contexts: Vec::new(),
+    }
 }

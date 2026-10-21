@@ -115,6 +115,11 @@ hint:
   rollback: rollback
   add_content: add content
   remove_content: remove
+  upload: upload
+  parent: parent dir
+  hidden: hidden files
+  content_type: content type
+  background: hide (keeps running)
 
 help:
   title: Help
@@ -167,6 +172,7 @@ action:
   rollback: "rollback %{name}"
   add_content: "add %{count} units to %{name}"
   remove_content: "remove %{count} units from %{name}"
+  upload: "upload %{name}"
 
 form:
   create: "New · %{what}"
@@ -257,6 +263,20 @@ dash:
   components: Components
   no_repositories: No repositories
   schema_loading: Loading schema…
+
+upload:
+  pick_title: Upload files
+  title: Uploads
+  marked: "%{count} marked"
+  content_type: Content type
+  repository: Repository
+  directory: Directory
+  chunk: "Chunks of %{size} (upload_chunk_size)"
+  queued: queued
+  uploading: uploading
+  creating: creating content
+  done: done
+  failed: failed
 
 detail:
   usage: Usage

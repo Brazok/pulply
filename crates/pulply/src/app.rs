@@ -31,6 +31,7 @@ use crate::views::contexts::ContextView;
 use crate::views::dashboard::DashboardView;
 use crate::views::list::ListView;
 use crate::views::task::{TaskView, is_active};
+use crate::views::upload::{FileProgress, Phase, UploadJob, UploadView, shared_progress};
 use crate::views::{AfterTask, FetchKind, Level, Mutation, Outcome, Payload, View};
 
 /// Builds a [`crate::views::Ctx`] from disjoint fields so a view can be borrowed mutably alongside.
@@ -735,6 +736,62 @@ impl App {
         }
     }
 
+    /// Uploads each file in chunks, then creates its content unit (task tracked like any
+    /// mutation). Progress is shared with the overlay; the job keeps running when hidden.
+    fn start_upload(&mut self, job: UploadJob) {
+        let Some(s) = &self.session else { return };
+        if s.client.readonly() {
+            self.notify(Level::Error, t!("notice.readonly").into_owned());
+            return;
+        }
+        let progress = shared_progress(&job.files);
+        let (client, generation, tx) = (s.client.clone(), self.generation, self.tx.clone());
+        let chunk = self.config.upload_chunk_size;
+        let shared = progress.clone();
+        let handle = tokio::spawn(async move {
+            let set = |i: usize, f: &dyn Fn(&mut FileProgress)| {
+                if let Some(p) = shared.lock().expect("upload progress poisoned").get_mut(i) {
+                    f(p);
+                }
+            };
+            for (i, path) in job.files.iter().enumerate() {
+                set(i, &|p| {
+                    p.phase = Phase::Uploading;
+                    p.started = Some(Instant::now());
+                });
+                let uploaded = client
+                    .upload_file(path, chunk, |sent, total| {
+                        set(i, &|p| {
+                            p.sent = sent;
+                            p.total = total;
+                        })
+                    })
+                    .await;
+                let result = match uploaded {
+                    Ok(up) => {
+                        set(i, &|p| p.phase = Phase::Creating);
+                        client.post_form(&job.create_path, &job.create_fields(path, &up.href)).await
+                    }
+                    Err(e) => Err(e),
+                };
+                let phase = match &result {
+                    Ok(_) => Phase::Done,
+                    Err(e) => Phase::Failed(e.to_string()),
+                };
+                set(i, &|p| {
+                    p.phase = phase.clone();
+                    p.finished = Some(Instant::now());
+                });
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let label = t!("action.upload", name = name).into_owned();
+                let mutation = Mutation::new(pulply_api::Method::POST, job.create_path.clone(), None, label);
+                let _ = tx.send(Msg::Mutated { generation, mutation, result });
+            }
+        });
+        self.background.push(handle.abort_handle());
+        self.open_overlay(Box::new(UploadView::new(progress)));
+    }
+
     fn open(&mut self, target: Target) {
         match target {
             Target::Dashboard => {
@@ -832,6 +889,7 @@ impl App {
                 }
             }
             Outcome::EditExternal(href) => self.pending_edit = Some(href),
+            Outcome::Upload(job) => self.start_upload(job),
             Outcome::Notify(level, text) => self.notify(level, text),
             Outcome::Batch(all) => {
                 for o in all {

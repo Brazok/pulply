@@ -115,6 +115,11 @@ hint:
   rollback: revenir à cette version
   add_content: ajouter du contenu
   remove_content: retirer
+  upload: téléverser
+  parent: dossier parent
+  hidden: fichiers cachés
+  content_type: type de contenu
+  background: masquer (continue)
 
 help:
   title: Aide
@@ -167,6 +172,7 @@ action:
   rollback: "retour arrière de %{name}"
   add_content: "ajout de %{count} unités à %{name}"
   remove_content: "retrait de %{count} unités de %{name}"
+  upload: "téléversement de %{name}"
 
 form:
   create: "Nouveau · %{what}"
@@ -257,6 +263,20 @@ dash:
   components: Composants
   no_repositories: Aucun dépôt
   schema_loading: Chargement du schéma…
+
+upload:
+  pick_title: Téléverser des fichiers
+  title: Téléversements
+  marked: "%{count} marqués"
+  content_type: Type de contenu
+  repository: Dépôt
+  directory: Dossier
+  chunk: "Morceaux de %{size} (upload_chunk_size)"
+  queued: en attente
+  uploading: envoi
+  creating: création du contenu
+  done: terminé
+  failed: échec
 
 detail:
   usage: Utilisation

@@ -15,7 +15,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::columns::{self, Column, SortValue};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, form, summary, task};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, form, summary, task, upload};
 use crate::format;
 use crate::labels;
 
@@ -352,6 +352,25 @@ impl ListView {
         self.selected_type(ctx).is_some_and(|t| t.ops.delete)
     }
 
+    /// Upload destination: in a content list its type (into the version's repository if
+    /// opened from one); on a repository row, the plugin's upload-capable types.
+    fn upload_target(&self, ctx: &Ctx) -> Option<(Vec<String>, Option<String>)> {
+        let reg = ctx.registry()?;
+        let own = self.own_type(ctx)?;
+        if own.category == "content" {
+            let capable = upload::upload_types(&own.plugin, reg).iter().any(|t| t.id == own.id);
+            let repo = self.version_context().map(|(_, repo)| repo.to_owned());
+            return capable.then(|| (vec![own.id.clone()], repo));
+        }
+        let href = self.selected()?.href()?;
+        let t = reg.type_for_href(href)?;
+        if t.category != "repositories" || pulply_api::models::version_number(href).is_some() {
+            return None;
+        }
+        let types: Vec<String> = upload::upload_types(&t.plugin, reg).iter().map(|t| t.id.clone()).collect();
+        (!types.is_empty()).then(|| (types, Some(href.to_owned())))
+    }
+
     fn has_running_tasks(&self) -> bool {
         self.kind == Kind::Tasks
             && self.rows.iter().any(|r| matches!(r.str_field("state"), Some("running" | "waiting" | "canceling")))
@@ -475,6 +494,9 @@ impl View for ListView {
                     h.push(Hint::new("D", t!("hint.distribute")));
                 }
             }
+            if self.upload_target(ctx).is_some() {
+                h.push(Hint::new("U", t!("hint.upload")));
+            }
             if let Some(href) = self.selected().and_then(|r| r.href())
                 && pulply_api::models::version_number(href).is_some()
                 && pulply_api::models::version_repository(href).is_some_and(|r| actions::can_modify(r, ctx))
@@ -579,6 +601,13 @@ impl View for ListView {
                 Some((version, repo)) => actions::remove_content(repo, version, self.selection(), ctx),
                 None => Outcome::Ignored,
             },
+            KeyCode::Char('U') if self.upload_target(ctx).is_some() => {
+                if ctx.readonly() {
+                    return Outcome::readonly();
+                }
+                let Some((types, repo)) = self.upload_target(ctx) else { return Outcome::None };
+                Outcome::Push(Box::new(upload::FilePickerView::new(types, repo)))
+            }
             KeyCode::Char(' ') => self.toggle_mark(),
             KeyCode::Char('d') if ctrl && self.kind != Kind::Tasks && self.can_delete(ctx) => {
                 actions::delete(self.selection(), ctx, false)

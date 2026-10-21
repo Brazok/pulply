@@ -14,6 +14,7 @@ pub mod list;
 pub mod plugins;
 pub mod summary;
 pub mod task;
+pub mod upload;
 
 use std::time::Duration;
 
@@ -143,6 +144,8 @@ pub enum Outcome {
     },
     /// Edit a resource as YAML in `$EDITOR`.
     EditExternal(String),
+    /// Run an upload batch (progress overlay, content created from each file).
+    Upload(upload::UploadJob),
     Notify(Level, String),
     Batch(Vec<Outcome>),
 }

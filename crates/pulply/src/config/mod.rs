@@ -46,6 +46,7 @@ struct FileConfig {
     language: Option<String>,
     start_view: String,
     refresh: u64,
+    upload_chunk_size: String,
     import_pulp_cli: bool,
     default_context: Option<String>,
     contexts: BTreeMap<String, ContextConfig>,
@@ -57,6 +58,7 @@ impl Default for FileConfig {
             language: None,
             start_view: "dashboard".into(),
             refresh: DEFAULT_REFRESH_SECS,
+            upload_chunk_size: "6MiB".into(),
             import_pulp_cli: true,
             default_context: None,
             contexts: BTreeMap::new(),
@@ -69,9 +71,30 @@ pub struct Config {
     pub language: Option<String>,
     pub start_view: String,
     pub refresh: u64,
+    /// Bytes per upload chunk.
+    pub upload_chunk_size: usize,
     pub default_context: Option<String>,
     /// Sorted by name.
     pub contexts: Vec<Context>,
+}
+
+/// `6MiB`, `512KiB`, `1GiB`, `1048576` → bytes (binary units; `KB`/`MB` accepted as aliases).
+pub fn parse_size(text: &str) -> Result<usize> {
+    let t = text.trim();
+    let split = t.find(|c: char| !c.is_ascii_digit()).unwrap_or(t.len());
+    let (digits, unit) = t.split_at(split);
+    let n: usize = digits.parse().map_err(|_| eyre!("invalid size '{text}'"))?;
+    let factor = match unit.trim().to_ascii_lowercase().as_str() {
+        "" | "b" => 1,
+        "k" | "kb" | "kib" => 1 << 10,
+        "m" | "mb" | "mib" => 1 << 20,
+        "g" | "gb" | "gib" => 1 << 30,
+        other => bail!("unknown size unit '{other}' in '{text}'"),
+    };
+    match n.checked_mul(factor) {
+        Some(0) | None => bail!("invalid size '{text}'"),
+        Some(bytes) => Ok(bytes),
+    }
 }
 
 pub fn config_dir() -> Option<PathBuf> {
@@ -102,10 +125,10 @@ impl Config {
             }
             _ => BTreeMap::new(),
         };
-        Ok(Self::merge(file, imported))
+        Self::merge(file, imported)
     }
 
-    fn merge(file: FileConfig, imported: BTreeMap<String, ContextConfig>) -> Self {
+    fn merge(file: FileConfig, imported: BTreeMap<String, ContextConfig>) -> Result<Self> {
         let mut contexts: BTreeMap<String, Context> = imported
             .into_iter()
             .map(|(name, cfg)| (name.clone(), Context { name, origin: Origin::PulpCli, cfg }))
@@ -113,13 +136,14 @@ impl Config {
         for (name, cfg) in file.contexts {
             contexts.insert(name.clone(), Context { name, origin: Origin::Pulply, cfg });
         }
-        Self {
+        Ok(Self {
             language: file.language,
             start_view: file.start_view,
             refresh: file.refresh.max(MIN_REFRESH_SECS),
+            upload_chunk_size: parse_size(&file.upload_chunk_size).wrap_err("upload_chunk_size")?,
             default_context: file.default_context,
             contexts: contexts.into_values().collect(),
-        }
+        })
     }
 
     pub fn context(&self, name: &str) -> Option<&Context> {
@@ -248,7 +272,7 @@ readonly = true
 "#,
         )
         .unwrap();
-        let cfg = Config::merge(file, parse_pulp_cli(CLI_TOML).unwrap());
+        let cfg = Config::merge(file, parse_pulp_cli(CLI_TOML).unwrap()).unwrap();
         let lab = cfg.context("lab").unwrap();
         assert_eq!(lab.origin, Origin::Pulply);
         assert_eq!(lab.cfg.base_url, "http://lab:9000");
@@ -258,8 +282,18 @@ readonly = true
     }
 
     #[test]
+    fn upload_chunk_sizes_parse_with_binary_units() {
+        assert_eq!(parse_size("6MiB").unwrap(), 6 << 20);
+        assert_eq!(parse_size(" 512 KiB ").unwrap(), 512 << 10);
+        assert_eq!(parse_size("1048576").unwrap(), 1 << 20);
+        assert!(parse_size("0").is_err());
+        assert!(parse_size("6 parsecs").is_err());
+        assert_eq!(Config::merge(FileConfig::default(), BTreeMap::new()).unwrap().upload_chunk_size, 6 << 20);
+    }
+
+    #[test]
     fn context_selection_precedence() {
-        let mut cfg = Config::merge(FileConfig::default(), parse_pulp_cli(CLI_TOML).unwrap());
+        let mut cfg = Config::merge(FileConfig::default(), parse_pulp_cli(CLI_TOML).unwrap()).unwrap();
         assert_eq!(cfg.select_context(None).unwrap().name, "default");
         cfg.default_context = Some("lab".into());
         assert_eq!(cfg.select_context(None).unwrap().name, "lab");
