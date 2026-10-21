@@ -97,3 +97,46 @@ fn builds_domain_scoped_paths() {
     assert_eq!(c.api_path("tasks/"), "/pulp/acme/api/v3/tasks/");
     assert_eq!(c.url("/pulp/acme/api/v3/tasks/"), "https://pulp.example.com/pulp/acme/api/v3/tasks/");
 }
+
+#[tokio::test]
+async fn uploads_file_in_ranged_chunks() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/pulp/api/v3/uploads/"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({"pulp_href": "/pulp/api/v3/uploads/u1/"})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    for range in ["bytes 0-3/10", "bytes 4-7/10", "bytes 8-9/10"] {
+        Mock::given(method("PUT"))
+            .and(path("/pulp/api/v3/uploads/u1/"))
+            .and(header("content-range", range))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("pkg.rpm");
+    std::fs::write(&file, b"0123456789").unwrap();
+    let mut seen = Vec::new();
+    let up = client(&server, false).upload_file(&file, 4, |sent, total| seen.push((sent, total))).await.unwrap();
+    assert_eq!(up.href, "/pulp/api/v3/uploads/u1/");
+    assert_eq!(up.size, 10);
+    // sha256("0123456789")
+    assert_eq!(up.sha256, "84d89877f0d4041efb6bf91a16f0248f2fd573e6af05c19f96bedb9f882f7882");
+    assert_eq!(seen, [(0, 10), (4, 10), (8, 10), (10, 10)]);
+}
+
+#[tokio::test]
+async fn readonly_refuses_uploads_and_form_posts() {
+    let server = MockServer::start().await;
+    Mock::given(wiremock::matchers::any()).respond_with(ResponseTemplate::new(200)).expect(0).mount(&server).await;
+    let c = client(&server, true);
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("f");
+    std::fs::write(&file, b"x").unwrap();
+    assert!(matches!(c.upload_file(&file, 4, |_, _| {}).await, Err(Error::ReadOnly { .. })));
+    let form = [("upload".to_owned(), "/u/".to_owned())];
+    assert!(matches!(c.post_form("/pulp/api/v3/content/file/files/", &form).await, Err(Error::ReadOnly { .. })));
+}

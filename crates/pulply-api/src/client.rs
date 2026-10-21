@@ -135,7 +135,7 @@ impl PulpClient {
         }
     }
 
-    fn request(&self, method: Method, url: &str) -> reqwest::RequestBuilder {
+    pub(crate) fn request(&self, method: Method, url: &str) -> reqwest::RequestBuilder {
         let req = self.inner.http.request(method, url);
         match &self.inner.auth {
             Some((user, pass)) => req.basic_auth(user, pass.as_deref()),

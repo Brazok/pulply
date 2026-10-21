@@ -5,6 +5,7 @@ pub mod error;
 pub mod models;
 pub mod registry;
 pub mod status;
+pub mod upload;
 
 pub use client::{ClientConfig, PulpClient, VerifySsl};
 pub use error::{Error, Result};
@@ -12,3 +13,4 @@ pub use models::{Page, ResourceExt};
 pub use registry::{Registry, ResourceType};
 pub use reqwest::Method;
 pub use status::{Status, Version};
+pub use upload::Uploaded;
