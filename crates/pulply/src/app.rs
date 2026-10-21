@@ -352,6 +352,7 @@ impl App {
         let names: Vec<String> = self.config.contexts.iter().map(|c| c.name.clone()).collect();
         let reg = self.session.as_ref().and_then(|s| s.registry.as_deref());
         self.completions = commands::completions(reg, &names);
+        self.completions.extend(self.config.custom.aliases.keys().cloned());
     }
 
     // ------------------------------------------------------------ messages
@@ -896,7 +897,8 @@ impl App {
             return;
         }
         let reg = self.session.as_ref().and_then(|s| s.registry.clone());
-        match commands::parse(input, reg.as_deref()) {
+        let expanded = self.config.custom.expand(input);
+        match commands::parse(&expanded, reg.as_deref()) {
             Ok(target) => {
                 self.history.retain(|h| h != input);
                 self.history.push(input.to_owned());
@@ -1004,6 +1006,11 @@ impl App {
                 return;
             }
             _ => {}
+        }
+        // User hotkeys (hotkeys.toml) run a `:` command and take precedence over view keys.
+        if let Some(cmd) = self.config.custom.hotkey(&key).map(str::to_owned) {
+            self.run_command(&cmd);
+            return;
         }
         if self.sidebar_focus {
             match self.sidebar.handle_key(key) {

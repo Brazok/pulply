@@ -47,6 +47,7 @@ pub fn config() -> Config {
         default_context: None,
         skin: "dark".into(),
         dir: None,
+        custom: Default::default(),
         contexts: Vec::new(),
     }
 }

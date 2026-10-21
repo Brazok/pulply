@@ -47,6 +47,8 @@ pub struct ListView {
     columns: Vec<Column>,
     /// Endpoint accepts `?fields=` (lighter payloads for big content types).
     fields_param: bool,
+    /// `views.toml` columns checked (applied on first fetch, where the config is known).
+    custom_checked: bool,
     ordering_fields: Vec<String>,
     rows: Vec<Value>,
     count: u64,
@@ -110,6 +112,7 @@ impl ListView {
             base_query,
             columns,
             fields_param: t.is_some_and(|t| t.param("fields").is_some()),
+            custom_checked: false,
             ordering_fields: t.map(|t| t.ordering_fields().to_vec()).unwrap_or_default(),
             rows: Vec::new(),
             count: 0,
@@ -814,6 +817,12 @@ impl View for ListView {
 
     fn fetch(&mut self, kind: FetchKind, ctx: &Ctx) -> Option<Fetch> {
         let client = ctx.client()?.clone();
+        if !self.custom_checked {
+            self.custom_checked = true;
+            if let Some(specs) = self.type_id.as_ref().and_then(|id| ctx.config.custom.views.get(id)) {
+                self.columns = specs.iter().map(columns::from_spec).collect();
+            }
+        }
         let query = match kind {
             FetchKind::Refresh => self.query(0, self.rows.len().clamp(PAGE_SIZE, MAX_REFRESH)),
             FetchKind::More => self.query(self.rows.len(), PAGE_SIZE),

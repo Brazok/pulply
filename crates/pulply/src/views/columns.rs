@@ -33,6 +33,8 @@ pub enum ColKey {
     TaskName,
     TaskResources,
     TaskDuration,
+    /// Nested value at a JSON path (`pulp_labels.env`, `artifacts.0`), from `views.toml`.
+    Path(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +59,7 @@ impl Column {
             ColKey::TaskName => vec!["name"],
             ColKey::TaskResources => vec!["reserved_resources_record"],
             ColKey::TaskDuration => vec!["started_at", "finished_at"],
+            ColKey::Path(p) => p.iter().take(1).map(String::as_str).collect(),
         }
     }
 
@@ -116,6 +119,16 @@ impl Column {
                 (parts.join(sep), Style::new())
             }
             ColKey::Nevra => (nevra(item), Style::new()),
+            ColKey::Path(p) => {
+                let v = p.iter().try_fold(item, |v, seg| match v {
+                    Value::Array(a) => seg.parse::<usize>().ok().and_then(|i| a.get(i)),
+                    _ => v.get(seg),
+                });
+                match v.and_then(Value::as_str).filter(|s| pulply_api::models::is_href(s)) {
+                    Some(h) => (format::href(h, ctx.names), Style::new()),
+                    None => (scalar(v), Style::new()),
+                }
+            }
             ColKey::TaskState => {
                 let s = str_of("state").unwrap_or_default();
                 (s.to_owned(), theme.task_state(s))
@@ -144,6 +157,25 @@ impl Column {
             }
         }
     }
+}
+
+/// Column for a `views.toml` entry: top-level fields get the rendering of their kind
+/// (hrefs as names, timestamps as ages, latest version as a number).
+pub fn from_spec(spec: &crate::custom::ColumnSpec) -> Column {
+    use ColKey::*;
+    let path = spec.path();
+    let key = if path.contains('.') {
+        Path(path.split('.').map(str::to_owned).collect())
+    } else if path == "latest_version_href" {
+        VersionOf(path.into())
+    } else if path.ends_with("_href") || path == "repository" || path == "remote" || path == "publication" {
+        Href(path.into())
+    } else if path == "pulp_created" || path == "pulp_last_updated" || path.ends_with("_at") {
+        Age(path.into())
+    } else {
+        Field(path.into())
+    };
+    Column::new(spec.header(), key)
 }
 
 /// `bash-0:5.2.26-3.fc40.x86_64`; the epoch is omitted when empty or `0`.

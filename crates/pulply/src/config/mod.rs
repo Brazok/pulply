@@ -83,6 +83,8 @@ pub struct Config {
     pub skin: String,
     /// Directory of the config file, holding the annex files (`skins/`, `hotkeys.toml`…).
     pub dir: Option<PathBuf>,
+    /// `hotkeys.toml`, `aliases.toml`, `views.toml`.
+    pub custom: crate::custom::Custom,
     /// Sorted by name.
     pub contexts: Vec<Context>,
 }
@@ -136,6 +138,7 @@ impl Config {
         };
         let mut config = Self::merge(file, imported)?;
         config.dir = path.and_then(|p| p.parent().map(Path::to_path_buf));
+        config.custom = crate::custom::Custom::load(config.dir.as_deref())?;
         Ok(config)
     }
 
@@ -155,6 +158,7 @@ impl Config {
             default_context: file.default_context,
             skin: file.skin,
             dir: None,
+            custom: Default::default(),
             contexts: contexts.into_values().collect(),
         })
     }

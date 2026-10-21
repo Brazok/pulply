@@ -2,6 +2,7 @@ mod app;
 mod cli;
 mod commands;
 mod config;
+mod custom;
 mod editor;
 mod format;
 mod labels;
