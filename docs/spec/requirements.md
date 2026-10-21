@@ -49,10 +49,12 @@ Format des critères : EARS (`QUAND … ALORS pulply DOIT …`). Chaque exigence
 - **R1.5** Options CLI : `--context <nom>`, `--config <chemin>`, `--readonly`, `-c/--command <vue>`, `--refresh <secondes>`, `-l/--log-level`, `--version`, `--help`.
 - **R1.6** QUAND la connexion ou l'authentification échoue ALORS pulply DOIT afficher l'erreur (statut HTTP, message) dans un écran dédié avec les actions réessayer / changer de contexte / quitter, sans paniquer.
 - **R1.7** QUAND la version de pulpcore détectée est < 3.50 ALORS pulply DOIT afficher un avertissement persistant dans l'en-tête et continuer en mode « au mieux ».
+- **R1.8** pulply DOIT appliquer le `domain` comme pulp-cli : QUAND le serveur annonce les domaines activés (`domain_enabled` du statut) ALORS les URLs DOIVENT être préfixées par `{api_root}<domain>/api/v3/`, avec `default` si aucun domaine n'est configuré ; SINON le domaine DOIT être ignoré (`{api_root}api/v3/`).
+- **R1.9** QUAND un `domain` différent de `default` est configuré mais que le serveur n'a pas les domaines activés ALORS pulply DOIT l'ignorer et le signaler par une notification à la connexion.
 
 ### R2 — Découverte des ressources
 
-- **R2.1** À la connexion, pulply DOIT lire `GET {api_root}api/v3/status/` (versions des composants, workers, content apps, stockage, DB, Redis) et `GET {api_root}api/v3/docs/api.json`.
+- **R2.1** À la connexion, pulply DOIT lire `GET {api_root}api/v3/status/` (toujours sans domaine, cette route n'étant pas rattachée à un domaine dans pulpcore) (versions des composants, workers, content apps, stockage, DB, Redis) et `GET {api_root}api/v3/docs/api.json`.
 - **R2.2** pulply DOIT mettre en cache le schéma OpenAPI sur disque, avec pour clé `base_url` + versions des composants, et ne le recharger que si les versions changent ou sur `:refresh-schema`.
 - **R2.3** pulply DOIT construire un registre de ressources à partir des chemins OpenAPI : catégorie (repositories, remotes, distributions, publications, content, acs, contentguards, exporters, importers…), plugin, type, opérations disponibles (list, read, create, update, partial_update, delete et actions comme sync, modify, add_role…).
 - **R2.4** Tout plugin installé sur le serveur DOIT apparaître dans la sidebar et dans l'autocomplétion de `:` même sans vue sur mesure.

@@ -58,3 +58,7 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 - [x] README (installation, config, raccourcis), captures
 
 **Acceptation M4** : un utilisateur non admin voit uniquement les actions permises ; la release produit tous les artefacts.
+
+## Correctifs
+
+- [ ] Domaine appliqué seulement si le serveur a les domaines activés, `status/` lu hors domaine, notification si un domaine configuré est ignoré — R1.8, R1.9, R2.1
