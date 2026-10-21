@@ -31,21 +31,33 @@ pub struct ActionMenuView {
     state: ListState,
 }
 
-/// The resource at `href` has POST actions for the menu.
+/// The user may run the POST action `verb` on `href`: its own permission when Pulp has
+/// one (`sync`, `modify`, `repair`, `replicate`…; `manage_roles` for role changes), else
+/// the right to change the resource (labels, reset, exports…).
+fn action_allowed(verb: &str, href: &str, ctx: &Ctx) -> bool {
+    let own = match verb {
+        "add_role" | "remove_role" => "manage_roles",
+        "set_label" | "unset_label" => "change",
+        v => v,
+    };
+    actions::can_on(own, href, ctx) || (own != "manage_roles" && actions::can_on("change", href, ctx))
+}
+
+/// The resource at `href` has POST actions the user may run.
 pub fn has_actions(href: &str, ctx: &Ctx) -> bool {
     ctx.registry()
         .and_then(|r| r.type_for_href(href))
-        .is_some_and(|t| t.actions.iter().any(|a| a.method == OpMethod::Post))
+        .is_some_and(|t| t.actions.iter().any(|a| a.method == OpMethod::Post && action_allowed(&a.verb, href, ctx)))
 }
 
 impl ActionMenuView {
-    /// Menu of the POST actions of the resource at `href`, if any.
+    /// Menu of the POST actions of the resource at `href` the user may run, if any.
     pub fn for_resource(href: &str, name: String, ctx: &Ctx) -> Option<Self> {
         let t = ctx.registry()?.type_for_href(href)?;
         let mut items: Vec<(String, Option<String>)> = t
             .actions
             .iter()
-            .filter(|a| a.method == OpMethod::Post)
+            .filter(|a| a.method == OpMethod::Post && action_allowed(&a.verb, href, ctx))
             .map(|a| (a.verb.clone(), a.body_schema.clone()))
             .collect();
         items.sort();

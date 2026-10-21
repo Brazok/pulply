@@ -33,7 +33,7 @@ resource:
   groups: Groupes
   roles: Rôles
   artifacts: Artefacts
-  uploads: Uploads
+  uploads: Téléversements
   access_policies: Politiques d'accès
   signing-services: Services de signature
   upstream-pulps: Pulp amont
