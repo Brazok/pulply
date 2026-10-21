@@ -23,22 +23,26 @@ pub struct Connected {
     pub client: PulpClient,
     pub status: Status,
     pub perms: Permissions,
+    /// Configured domain ignored because the server has domains disabled (`default` excluded).
+    pub ignored_domain: Option<String>,
 }
 
-/// Builds the client, reads `status/`, validates credentials against `login/` and
+/// Builds the client, reads `status/`, scopes the client to the domain when enabled, validates credentials against `login/` and
 /// loads the user's permissions.
 pub async fn connect(cfg: &ContextConfig, creds: Option<Credentials>, readonly: bool) -> Result<Connected, Error> {
     let has_creds = creds.is_some();
     let client_cfg = cfg.client_config(creds, readonly).map_err(|e| Error::Config(e.to_string()))?;
     let client = PulpClient::new(client_cfg)?;
     let status = client.status().await?;
+    let client = client.with_domains(status.domain_enabled);
+    let ignored_domain = cfg.domain.clone().filter(|d| !status.domain_enabled && d != "default");
     let perms = if has_creds {
         client.get(&client.api_path("login/"), &[]).await?;
         if cfg.rbac_filter.unwrap_or(true) { perms::load(&client).await } else { Permissions::default() }
     } else {
         Permissions::default()
     };
-    Ok(Connected { client, status, perms })
+    Ok(Connected { client, status, perms, ignored_domain })
 }
 
 fn cache_dir() -> Option<PathBuf> {
@@ -111,4 +115,43 @@ async fn store(dir: &Path, file: &Path, prefix: &str, bytes: &[u8]) -> std::io::
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use super::*;
+
+    async fn connect_with(domain: Option<&str>, domain_enabled: bool) -> Connected {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/pulp/api/v3/status/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"domain_enabled": domain_enabled})))
+            .mount(&server)
+            .await;
+        let cfg = ContextConfig { base_url: server.uri(), domain: domain.map(Into::into), ..Default::default() };
+        connect(&cfg, None, false).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn ignores_domain_when_server_has_domains_disabled() {
+        let c = connect_with(Some("acme"), false).await;
+        assert_eq!(c.client.api_path("tasks/"), "/pulp/api/v3/tasks/");
+        assert_eq!(c.ignored_domain.as_deref(), Some("acme"));
+        let c = connect_with(Some("default"), false).await;
+        assert_eq!(c.client.api_path("tasks/"), "/pulp/api/v3/tasks/");
+        assert_eq!(c.ignored_domain, None);
+    }
+
+    #[tokio::test]
+    async fn scopes_to_domain_when_server_has_domains_enabled() {
+        let c = connect_with(Some("acme"), true).await;
+        assert_eq!(c.client.api_path("tasks/"), "/pulp/acme/api/v3/tasks/");
+        assert_eq!(c.ignored_domain, None);
+        let c = connect_with(None, true).await;
+        assert_eq!(c.client.api_path("tasks/"), "/pulp/default/api/v3/tasks/");
+    }
 }
