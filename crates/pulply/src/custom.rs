@@ -1,5 +1,5 @@
-//! User customization files next to `config.toml` (R14.2–R14.4): `hotkeys.toml`,
-//! `aliases.toml` and `views.toml`.
+//! User customization files next to `config.toml` (R14.2–R14.5): `hotkeys.toml`,
+//! `aliases.toml`, `views.toml` and `plugins.toml`.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -130,6 +130,70 @@ struct ViewFile {
     columns: Vec<ColumnSpec>,
 }
 
+/// `plugins.toml` entry (R14.5): an external command run on the selected resource.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PluginFile {
+    key: String,
+    description: Option<String>,
+    /// Type ids (`repositories/rpm/rpm`), categories (`distributions`), plugins (`rpm`) or `all`.
+    #[serde(default)]
+    scopes: Vec<String>,
+    command: String,
+    #[serde(default)]
+    args: Vec<String>,
+    /// Run without suspending the TUI (output discarded).
+    #[serde(default)]
+    background: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct Plugin {
+    pub name: String,
+    pub key: KeySpec,
+    /// Key as written in the config, for hints.
+    pub key_label: String,
+    pub description: String,
+    pub scopes: Vec<String>,
+    pub command: String,
+    pub args: Vec<String>,
+    pub background: bool,
+}
+
+/// Variables offered to plugin arguments, also exported as `PULPLY_<NAME>`.
+pub const PLUGIN_VARS: &[&str] = &["HREF", "NAME", "TYPE", "PRN", "BASE_URL", "API_URL", "CONTEXT", "DIST_URL", "USER"];
+
+impl Plugin {
+    /// Applies to a resource of type `id`, in `category`, from `plugin`.
+    pub fn in_scope(&self, id: &str, category: &str, plugin: &str) -> bool {
+        self.scopes.iter().any(|s| s == "all" || s == id || s == category || s == plugin)
+    }
+}
+
+/// Replaces `$VAR` / `${VAR}` for known variables; unknown ones stay as written.
+pub fn substitute(arg: &str, vars: &HashMap<&str, String>) -> String {
+    let mut out = String::with_capacity(arg.len());
+    let mut rest = arg;
+    while let Some(i) = rest.find('$') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        let (name, len) = match after.strip_prefix('{').and_then(|a| a.find('}').map(|end| &a[..end])) {
+            Some(name) => (name, name.len() + 2),
+            None => {
+                let end = after.find(|c: char| !(c.is_ascii_uppercase() || c == '_')).unwrap_or(after.len());
+                (&after[..end], end)
+            }
+        };
+        match vars.get(name) {
+            Some(value) => out.push_str(value),
+            None => out.push_str(&rest[i..i + 1 + len]),
+        }
+        rest = &after[len..];
+    }
+    out.push_str(rest);
+    out
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Custom {
     pub hotkeys: Vec<(KeySpec, String)>,
@@ -137,6 +201,7 @@ pub struct Custom {
     pub aliases: BTreeMap<String, String>,
     /// Resource type id (`repositories/rpm/rpm`) → columns.
     pub views: HashMap<String, Vec<ColumnSpec>>,
+    pub plugins: Vec<Plugin>,
 }
 
 fn read<T: for<'de> Deserialize<'de>>(dir: &Path, name: &str) -> Result<Option<T>> {
@@ -163,6 +228,27 @@ impl Custom {
         }
         let views: BTreeMap<String, ViewFile> = read(dir, "views.toml")?.unwrap_or_default();
         custom.views = views.into_iter().map(|(id, v)| (id, v.columns)).collect();
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct PluginsFile {
+            #[serde(default)]
+            plugins: BTreeMap<String, PluginFile>,
+        }
+        let plugins: PluginsFile = read(dir, "plugins.toml")?.unwrap_or(PluginsFile { plugins: BTreeMap::new() });
+        for (name, p) in plugins.plugins {
+            let key = KeySpec::parse(&p.key)
+                .wrap_err_with(|| format!("{}: plugin '{name}'", dir.join("plugins.toml").display()))?;
+            custom.plugins.push(Plugin {
+                description: p.description.unwrap_or_else(|| name.clone()),
+                name,
+                key,
+                key_label: p.key,
+                scopes: p.scopes,
+                command: p.command,
+                args: p.args,
+                background: p.background,
+            });
+        }
         Ok(custom)
     }
 
@@ -219,6 +305,29 @@ mod tests {
         assert_eq!(custom.expand("rr"), "repo rpm");
         assert_eq!(custom.expand(" rr  extra "), "repo rpm extra");
         assert_eq!(custom.expand("repo rr"), "repo rr");
+    }
+
+    #[test]
+    fn plugin_arguments_substitute_known_variables() {
+        let vars = HashMap::from([("NAME", "iso".to_owned()), ("DIST_URL", "http://h/pulp/content/iso/".to_owned())]);
+        assert_eq!(substitute("curl -s $DIST_URL", &vars), "curl -s http://h/pulp/content/iso/");
+        assert_eq!(substitute("${NAME}.tar $NAME-x", &vars), "iso.tar iso-x");
+        assert_eq!(substitute("$HOME $1 $ ${NOPE", &vars), "$HOME $1 $ ${NOPE", "unknown variables stay as written");
+    }
+
+    #[test]
+    fn plugins_load_with_scopes() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = "[plugins.browse]\nkey = \"ctrl-o\"\nscopes = [\"distributions\"]\ncommand = \"xdg-open\"\nargs = [\"$DIST_URL\"]\nbackground = true\n";
+        std::fs::write(dir.path().join("plugins.toml"), text).unwrap();
+        let custom = Custom::load(Some(dir.path())).unwrap();
+        let p = &custom.plugins[0];
+        assert_eq!((p.name.as_str(), p.description.as_str(), p.background), ("browse", "browse", true));
+        assert!(p.in_scope("distributions/file/file", "distributions", "file"));
+        assert!(!p.in_scope("repositories/file/file", "repositories", "file"));
+
+        std::fs::write(dir.path().join("plugins.toml"), "[plugins.x]\nkey = \"ctrl-o\"\n").unwrap();
+        assert!(Custom::load(Some(dir.path())).is_err(), "command is required");
     }
 
     #[test]

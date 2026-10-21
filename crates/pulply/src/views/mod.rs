@@ -187,13 +187,13 @@ impl Outcome {
 }
 
 pub struct Hint {
-    pub key: &'static str,
+    pub key: std::borrow::Cow<'static, str>,
     pub label: String,
 }
 
 impl Hint {
-    pub fn new(key: &'static str, label: impl Into<String>) -> Self {
-        Self { key, label: label.into() }
+    pub fn new(key: impl Into<std::borrow::Cow<'static, str>>, label: impl Into<String>) -> Self {
+        Self { key: key.into(), label: label.into() }
     }
 }
 
@@ -247,6 +247,11 @@ pub trait View: Send {
     /// Hrefs of the marked rows, or of the row under the cursor.
     fn selection(&self) -> Vec<String> {
         Vec::new()
+    }
+
+    /// Resource under the cursor (shell plugins get its href, name, URLs).
+    fn selected_item(&self) -> Option<&Value> {
+        None
     }
 
     /// Polling period while this view is on top; `None` disables polling.

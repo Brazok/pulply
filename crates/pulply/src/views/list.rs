@@ -742,6 +742,10 @@ impl View for ListView {
         }
     }
 
+    fn selected_item(&self) -> Option<&Value> {
+        self.selected()
+    }
+
     fn selection(&self) -> Vec<String> {
         if self.marked.is_empty() {
             self.selected().and_then(|r| r.href()).map(|h| vec![h.to_owned()]).unwrap_or_default()
@@ -933,7 +937,8 @@ mod tests {
                 now: chrono::Utc::now(),
             };
             let mut list = repo_list(&ctx);
-            let hints: Vec<&str> = list.hints(&ctx).iter().map(|h| h.key).collect();
+            let all = list.hints(&ctx);
+            let hints: Vec<&str> = all.iter().map(|h| h.key.as_ref()).collect();
             for key in mutation_keys {
                 assert_eq!(hints.contains(&key), !readonly, "hint {key} with readonly={readonly}: {hints:?}");
             }

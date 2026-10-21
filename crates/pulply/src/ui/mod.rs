@@ -43,7 +43,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let breadcrumb = app.stack.iter().map(|s| s.view.title()).collect::<Vec<_>>().join(" › ");
     let info = app.stack.last().map(|s| s.view.info(&ctx)).unwrap_or_default();
     // Hints follow the focused layer: the overlay when one is open.
-    let view_hints = app.overlay.as_ref().or(app.stack.last()).map(|s| s.view.hints(&ctx)).unwrap_or_default();
+    let mut view_hints = app.overlay.as_ref().or(app.stack.last()).map(|s| s.view.hints(&ctx)).unwrap_or_default();
+    view_hints.extend(app.plugin_hints());
     let border = if app.sidebar_focus { app.theme.border } else { app.theme.border_focus };
     let block = Block::bordered()
         .border_style(Style::new().fg(border))
@@ -201,7 +202,8 @@ fn global_hints() -> Vec<Hint> {
 
 fn draw_help(f: &mut Frame, app: &App) {
     let ctx = ctx!(app);
-    let view_hints = app.stack.last().map(|s| s.view.hints(&ctx)).unwrap_or_default();
+    let mut view_hints = app.stack.last().map(|s| s.view.hints(&ctx)).unwrap_or_default();
+    view_hints.extend(app.plugin_hints());
     let section = |title: String| Line::styled(title, app.theme.accent().add_modifier(Modifier::BOLD));
     let row = |h: &Hint| {
         Line::from(vec![Span::styled(format!("  {:<10}", h.key), app.theme.key()), Span::raw(h.label.clone())])

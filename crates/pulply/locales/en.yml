@@ -247,6 +247,11 @@ ctx:
   readonly: read-only
   readwrite: read-write
 
+plugin:
+  started: "Plugin %{name} started"
+  failed: "Plugin %{name} failed: %{status}"
+  press_enter: "[pulply] Press Enter to return…"
+
 error:
   forbidden: "Permission denied: your user is not allowed to do this"
 

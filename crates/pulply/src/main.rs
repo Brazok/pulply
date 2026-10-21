@@ -10,6 +10,7 @@ mod logging;
 mod names;
 mod perms;
 mod session;
+mod shell;
 #[cfg(test)]
 mod testutil;
 mod theme;

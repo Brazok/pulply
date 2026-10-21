@@ -247,6 +247,11 @@ ctx:
   readonly: lecture seule
   readwrite: lecture-écriture
 
+plugin:
+  started: "Plugin %{name} lancé"
+  failed: "Échec du plugin %{name} : %{status}"
+  press_enter: "[pulply] Appuyez sur Entrée pour revenir…"
+
 error:
   forbidden: "Permission refusée : votre utilisateur n'a pas ce droit"
 

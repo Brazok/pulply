@@ -198,6 +198,10 @@ impl View for DetailView {
         Some(async move { client.get(&href, &[]).await.map(Payload::Object) }.boxed())
     }
 
+    fn selected_item(&self) -> Option<&Value> {
+        self.data.as_ref()
+    }
+
     fn on_data(&mut self, _kind: FetchKind, result: Result<Payload, Error>, ctx: &Ctx) -> Outcome {
         match result {
             Ok(Payload::Object(v)) => {

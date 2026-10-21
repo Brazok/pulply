@@ -1,6 +1,6 @@
 //! Application state, event loop, polling, navigation and mutations.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -18,10 +18,12 @@ use tokio::task::AbortHandle;
 
 use crate::commands::{self, Target};
 use crate::config::{Config, netrc};
+use crate::custom::Plugin;
 use crate::editor::{self, EditOutcome};
 use crate::format;
 use crate::names::NameCache;
 use crate::session::{self, Session};
+use crate::shell::PluginRun;
 use crate::theme::Theme;
 use crate::ui;
 use crate::ui::sidebar::{self, Sidebar};
@@ -32,7 +34,7 @@ use crate::views::dashboard::DashboardView;
 use crate::views::list::ListView;
 use crate::views::task::{TaskView, is_active};
 use crate::views::upload::{FileProgress, Phase, UploadJob, UploadView, shared_progress};
-use crate::views::{AfterTask, FetchKind, Level, Mutation, Outcome, Payload, View, error_text};
+use crate::views::{AfterTask, FetchKind, Hint, Level, Mutation, Outcome, Payload, View, error_text};
 
 /// Builds a [`crate::views::Ctx`] from disjoint fields so a view can be borrowed mutably alongside.
 macro_rules! ctx {
@@ -151,6 +153,8 @@ pub struct App {
     pending_command: Option<String>,
     /// Resource to open in `$EDITOR` once the current event is handled.
     pending_edit: Option<String>,
+    /// Foreground shell plugin to run once the current event is handled.
+    pending_plugin: Option<PluginRun>,
     netrc: Vec<netrc::Entry>,
     password: Option<String>,
     tx: UnboundedSender<Msg>,
@@ -202,6 +206,7 @@ impl App {
             track_inflight: false,
             pending_command: None,
             pending_edit: None,
+            pending_plugin: None,
             netrc,
             password: None,
             tx,
@@ -236,6 +241,14 @@ impl App {
                 drop(events);
                 self.run_editor(terminal, href).await;
                 events = EventStream::new();
+            }
+            if let Some(run) = self.pending_plugin.take() {
+                drop(events);
+                let result = run.run_foreground(terminal).await;
+                events = EventStream::new();
+                if let Err(e) = result {
+                    self.notify(Level::Error, e);
+                }
             }
         }
         Ok(())
@@ -916,6 +929,66 @@ impl App {
         self.notice = Some(Notice { level, text, at: Instant::now() });
     }
 
+    /// Plugins applicable to the resource selected in the top view (no overlay open).
+    fn scoped_plugins(&self) -> Vec<(&Plugin, &Value)> {
+        let (Some(top), None, Some(reg)) =
+            (self.stack.last(), &self.overlay, self.session.as_ref().and_then(|s| s.registry.as_deref()))
+        else {
+            return Vec::new();
+        };
+        let Some(item) = top.view.selected_item() else { return Vec::new() };
+        let Some(t) = item.href().and_then(|h| reg.type_for_href(h)) else { return Vec::new() };
+        self.config
+            .custom
+            .plugins
+            .iter()
+            .filter(|p| p.in_scope(&t.id, &t.category, &t.plugin))
+            .map(|p| (p, item))
+            .collect()
+    }
+
+    pub fn plugin_hints(&self) -> Vec<Hint> {
+        self.scoped_plugins().into_iter().map(|(p, _)| Hint::new(p.key_label.clone(), p.description.clone())).collect()
+    }
+
+    fn plugin_for(&self, key: &KeyEvent) -> Option<PluginRun> {
+        let (plugin, item) = self.scoped_plugins().into_iter().find(|(p, _)| p.key.matches(key))?;
+        let session = self.session.as_ref()?;
+        let href = item.href().unwrap_or_default();
+        let reg = session.registry.as_deref();
+        let name = NameCache::label(item).map(str::to_owned).unwrap_or_else(|| format::href(href, &self.names));
+        let base_url = self.config.context(&self.ctx_name).map(|c| c.cfg.base_url.clone()).unwrap_or_default();
+        let vars = HashMap::from([
+            ("HREF", href.to_owned()),
+            ("NAME", name),
+            ("TYPE", reg.and_then(|r| r.type_for_href(href)).map(|t| t.id.clone()).unwrap_or_default()),
+            ("PRN", item.str_field("prn").unwrap_or_default().to_owned()),
+            ("BASE_URL", base_url),
+            ("API_URL", session.client.url(href)),
+            ("CONTEXT", self.ctx_name.clone()),
+            ("DIST_URL", item.str_field("base_url").unwrap_or_default().to_owned()),
+            ("USER", session.perms.username.clone().unwrap_or_default()),
+        ]);
+        Some(PluginRun::new(plugin, &vars))
+    }
+
+    fn start_plugin(&mut self, run: PluginRun) {
+        if !run.background {
+            self.pending_plugin = Some(run);
+            return;
+        }
+        self.notify(Level::Info, t!("plugin.started", name = run.name).into_owned());
+        let generation = self.generation;
+        tokio::spawn({
+            let tx = self.tx.clone();
+            async move {
+                if let Err(text) = run.run_background().await {
+                    let _ = tx.send(Msg::Notice { generation, level: Level::Error, text });
+                }
+            }
+        });
+    }
+
     fn apply(&mut self, outcome: Outcome, view_id: u64) {
         match outcome {
             Outcome::Ignored | Outcome::None => {}
@@ -1010,6 +1083,10 @@ impl App {
         // User hotkeys (hotkeys.toml) run a `:` command and take precedence over view keys.
         if let Some(cmd) = self.config.custom.hotkey(&key).map(str::to_owned) {
             self.run_command(&cmd);
+            return;
+        }
+        if let Some(run) = self.plugin_for(&key) {
+            self.start_plugin(run);
             return;
         }
         if self.sidebar_focus {
