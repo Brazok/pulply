@@ -258,6 +258,9 @@ dash:
   no_repositories: Aucun dépôt
   schema_loading: Chargement du schéma…
 
+detail:
+  usage: Utilisation
+
 summary:
   title: Contenu
   created: Créée

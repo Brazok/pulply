@@ -655,7 +655,7 @@ impl App {
             }
         }
         self.spawn(async move {
-            let fields = ("fields".to_owned(), "pulp_href,prn,name,username".to_owned());
+            let fields = ("fields".to_owned(), format!("pulp_href,prn,{}", crate::names::LABEL_FIELDS.join(",")));
             let single = [fields.clone()];
             let (objects, pages) = futures::join!(
                 join_all(hrefs.iter().map(|h| client.get(h, &single))),
@@ -672,7 +672,7 @@ impl App {
             let mut entries = Vec::new();
             let items = objects.into_iter().flatten().chain(pages.into_iter().flatten().flat_map(|p| p.results));
             for v in items {
-                let Some(name) = v.name().or_else(|| v.str_field("username")) else { continue };
+                let Some(name) = NameCache::label(&v) else { continue };
                 for key in [v.href(), v.str_field("prn")].into_iter().flatten() {
                     entries.push((key.to_owned(), name.to_owned()));
                 }

@@ -8,13 +8,14 @@ use pulply_api::models::{is_href, version_number, version_repository};
 use pulply_api::{Error, ResourceExt};
 use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::style::Modifier;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use rust_i18n::t;
 use serde_json::Value;
 
-use super::lines::{LineList, json_lines};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, form, open_href};
+use super::lines::{LineItem, LineList, json_lines};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, form, open_href, plugins};
 use crate::format;
 use crate::names::NameCache;
 
@@ -125,8 +126,28 @@ impl View for DetailView {
                 f.render_widget(Paragraph::new(Line::styled(t!("list.loading").into_owned(), ctx.theme.muted())), area)
             }
             (Some(data), None) => {
+                let mut lines = Vec::new();
+                if let Some(t) = self.resource_type(ctx)
+                    && let Some(view) = plugins::for_plugin(&t.plugin)
+                {
+                    let usage = view.describe_header(t, data);
+                    if !usage.is_empty() {
+                        let title = Line::styled(
+                            t!("detail.usage").into_owned(),
+                            ctx.theme.accent().add_modifier(Modifier::BOLD),
+                        );
+                        lines.push(LineItem::plain(title));
+                        lines.extend(
+                            usage
+                                .into_iter()
+                                .map(|u| LineItem::plain(Line::styled(format!("  {u}"), ctx.theme.success()))),
+                        );
+                        lines.push(LineItem::plain(""));
+                    }
+                }
                 // Rebuilt each frame so names resolved later show up.
-                self.lines.set(json_lines(data, ctx));
+                lines.extend(json_lines(data, ctx));
+                self.lines.set(lines);
                 self.lines.render(f, area, ctx);
             }
         }

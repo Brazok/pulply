@@ -258,6 +258,9 @@ dash:
   no_repositories: No repositories
   schema_loading: Loading schema…
 
+detail:
+  usage: Usage
+
 summary:
   title: Content
   created: Created

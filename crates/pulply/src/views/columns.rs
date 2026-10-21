@@ -25,6 +25,10 @@ pub enum ColKey {
     Bytes(String),
     /// `content_summary` of a repository version: `+added -removed =present`.
     Summary,
+    /// Non-empty fields joined with a separator (`namespace.name`).
+    Join(Vec<String>, &'static str),
+    /// RPM `name-[epoch:]version-release.arch`.
+    Nevra,
     TaskState,
     TaskName,
     TaskResources,
@@ -46,7 +50,8 @@ impl Column {
     pub fn api_fields(&self) -> Vec<&str> {
         match &self.key {
             ColKey::Field(f) | ColKey::Href(f) | ColKey::VersionOf(f) | ColKey::Age(f) | ColKey::Bytes(f) => vec![f],
-            ColKey::AnyHref(fs) => fs.iter().map(String::as_str).collect(),
+            ColKey::AnyHref(fs) | ColKey::Join(fs, _) => fs.iter().map(String::as_str).collect(),
+            ColKey::Nevra => vec!["name", "epoch", "version", "release", "arch"],
             ColKey::Summary => vec!["content_summary"],
             ColKey::TaskState => vec!["state"],
             ColKey::TaskName => vec!["name"],
@@ -59,6 +64,8 @@ impl Column {
     pub fn sort_field(&self) -> Option<&str> {
         match &self.key {
             ColKey::Field(f) | ColKey::Age(f) | ColKey::Bytes(f) => Some(f),
+            ColKey::Join(fs, _) => fs.first().map(String::as_str),
+            ColKey::Nevra => Some("name"),
             ColKey::TaskState => Some("state"),
             ColKey::TaskName => Some("name"),
             ColKey::TaskDuration => Some("started_at"),
@@ -104,6 +111,11 @@ impl Column {
                 (item.get(f).and_then(Value::as_u64).map(format::bytes).unwrap_or_default(), Style::new())
             }
             ColKey::Summary => (summary(item.get("content_summary")), Style::new()),
+            ColKey::Join(fs, sep) => {
+                let parts: Vec<String> = fs.iter().map(|f| scalar(item.get(f))).filter(|s| !s.is_empty()).collect();
+                (parts.join(sep), Style::new())
+            }
+            ColKey::Nevra => (nevra(item), Style::new()),
             ColKey::TaskState => {
                 let s = str_of("state").unwrap_or_default();
                 (s.to_owned(), theme.task_state(s))
@@ -132,6 +144,14 @@ impl Column {
             }
         }
     }
+}
+
+/// `bash-0:5.2.26-3.fc40.x86_64`; the epoch is omitted when empty or `0`.
+pub fn nevra(item: &Value) -> String {
+    let f = |k: &str| scalar(item.get(k));
+    let epoch = f("epoch");
+    let epoch = if epoch.is_empty() || epoch == "0" { String::new() } else { format!("{epoch}:") };
+    format!("{}-{epoch}{}-{}.{}", f("name"), f("version"), f("release"), f("arch"))
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -203,7 +223,7 @@ const SKIP: &[&str] = &[
 const MAX_COLUMNS: usize = 6;
 
 /// Translated header for a preset column (`col.<key>` in the locale files).
-fn col(key: &str) -> String {
+pub(crate) fn col(key: &str) -> String {
     crate::labels::tr(&format!("col.{key}"))
 }
 
@@ -216,6 +236,16 @@ fn field_header(name: &str) -> String {
 pub fn for_type(t: &ResourceType, schema: Option<&Schema>) -> Vec<Column> {
     use ColKey::*;
     let has = |f: &str| schema.is_none_or(|s| s.properties.contains_key(f));
+    // Plugin-specific columns first; fields missing from this server's schema are dropped.
+    if let Some(cols) = super::plugins::for_plugin(&t.plugin).and_then(|p| p.columns(t)) {
+        let mut cols: Vec<Column> = cols.into_iter().filter(|c| c.api_fields().iter().any(|f| has(f))).collect();
+        if !cols.is_empty() {
+            if has("pulp_created") {
+                cols.push(Column::new(col("age"), Age("pulp_created".into())));
+            }
+            return cols;
+        }
+    }
     let field = |key: &str, f: &str| Column::new(col(key), Field(f.into()));
     let preset: Vec<Column> = match (t.category.as_str(), t.name.as_str()) {
         ("tasks", _) => return tasks(),

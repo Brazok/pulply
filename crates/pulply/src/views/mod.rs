@@ -11,6 +11,7 @@ pub mod detail;
 pub mod form;
 pub mod lines;
 pub mod list;
+pub mod plugins;
 pub mod summary;
 pub mod task;
 
