@@ -1,0 +1,69 @@
+[package]
+name = "pulply"
+description = "Terminal UI to observe and manage Pulp 3 servers, in the spirit of k9s"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+keywords = ["pulp", "tui", "repository", "ratatui", "k9s"]
+categories = ["command-line-utilities"]
+include = ["src/**/*", "locales/*.yml", "skins/*.toml", "README.md", "LICENSE"]
+
+[dependencies]
+chrono = "0.4.45"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+color-eyre = "0.6.5"
+crossterm = { version = "0.29.0", features = ["event-stream"] }
+directories = "6.0.0"
+futures = "0.3.34"
+hex = "0.4.3"
+pulply-api = { version = "0.1.0", path = "../pulply-api" }
+ratatui = "0.30.2"
+rust-i18n = "4.2.4"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serde_norway = "0.9.42"
+sha2 = "0.11.1"
+sys-locale = "0.3.2"
+tokio = { version = "1.54.0", features = ["full"] }
+toml = "1.1.8"
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+unicode-width = "0.2.2"
+url = "2.5.8"
+x509-parser = "0.18.1"
+
+[dev-dependencies]
+flate2 = "1.1.10"
+insta = "1.49.0"
+tempfile = "3.27.0"
+
+[package.metadata.deb]
+maintainer = "pulply contributors"
+copyright = "pulply contributors"
+section = "admin"
+priority = "optional"
+extended-description = """\
+Terminal UI to observe and manage Pulp 3 servers: every resource type of every installed \
+plugin, tasks followed live, create/edit/delete, sync/publish/distribute workflows, \
+uploads, version diffs and RBAC-aware actions."""
+assets = [
+    ["target/release/pulply", "usr/bin/", "755"],
+    ["../../README.md", "usr/share/doc/pulply/README.md", "644"],
+    ["skins/*.toml", "usr/share/doc/pulply/skins/", "644"],
+]
+
+[package.metadata.generate-rpm]
+summary = "Terminal UI for Pulp 3, in the spirit of k9s"
+assets = [
+    { source = "target/release/pulply", dest = "/usr/bin/pulply", mode = "755" },
+    { source = "../../README.md", dest = "/usr/share/doc/pulply/README.md", mode = "644", doc = true },
+    { source = "../../LICENSE", dest = "/usr/share/licenses/pulply/LICENSE", mode = "644", doc = true },
+    { source = "skins/dark.toml", dest = "/usr/share/doc/pulply/skins/dark.toml", mode = "644", doc = true },
+    { source = "skins/light.toml", dest = "/usr/share/doc/pulply/skins/light.toml", mode = "644", doc = true },
+]

@@ -1,0 +1,35 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.32.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "homebrew"]
+# A GitHub repo to push Homebrew formulas to
+tap = "brazok/homebrew-tap"
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-musl",
+    "x86_64-unknown-linux-musl",
+]
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Whether to install an updater program
+install-updater = false
+# .deb / .rpm packages built and attached to the release (.github/workflows/build-packages.yml)
+global-artifacts-jobs = ["./build-packages"]
+# Publish jobs to run in CI: crates.io only for now.
+# Homebrew tap and OCI image (.github/workflows/publish-image.yml) are disabled; to re-enable:
+#   publish-jobs = ["homebrew", "./publish-crates", "./publish-image"]
+# then run `dist generate` to update release.yml.
+publish-jobs = ["./publish-crates"]
+# Permissions of the custom publish jobs (checkout + push to ghcr.io)
+github-custom-job-permissions = { "publish-image" = { contents = "read", packages = "write" }, "publish-crates" = { contents = "read" } }

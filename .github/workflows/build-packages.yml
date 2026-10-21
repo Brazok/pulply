@@ -1,0 +1,38 @@
+# .deb and .rpm packages, run by the cargo-dist release workflow (global-artifacts-jobs).
+# Artifacts named `artifacts-*` are attached to the GitHub Release.
+name: Build packages
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  packages:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install packagers
+        run: cargo install --locked cargo-deb cargo-generate-rpm
+      - name: Build
+        run: cargo build --release --locked -p pulply
+      - name: Package
+        run: |
+          mkdir -p dist-packages
+          cargo deb -p pulply --no-build --output dist-packages/
+          cargo generate-rpm -p crates/pulply --output dist-packages/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-packages-${{ matrix.arch }}
+          path: dist-packages/*

@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["crates/pulply-api", "crates/pulply"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/brazok/pulply"
+homepage = "https://github.com/brazok/pulply"
+authors = ["pulply contributors"]
+rust-version = "1.88"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# Release builds made by cargo-dist (`dist build`).
+[profile.dist]
+inherits = "release"

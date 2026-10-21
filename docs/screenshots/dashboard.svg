@@ -1,0 +1,283 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1092 578" font-family="DejaVu Sans Mono,Menlo,monospace" font-size="14">
+<rect width="100%" height="100%" fill="#1c1c1c"/>
+<rect x="0.0" y="0" width="67.2" height="17" fill="#1e3c5a"/>
+<text x="0.0" y="13" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="67.2"> pulply </text>
+<rect x="67.2" y="0" width="25.2" height="17" fill="#1e3c5a"/>
+<text x="67.2" y="13" fill="#7f7f7f" xml:space="preserve" textLength="25.2"> │ </text>
+<rect x="92.4" y="0" width="67.2" height="17" fill="#1e3c5a"/>
+<text x="92.4" y="13" fill="#ffffff" font-weight="bold" xml:space="preserve" textLength="67.2">ctx: lab</text>
+<rect x="159.6" y="0" width="25.2" height="17" fill="#1e3c5a"/>
+<text x="159.6" y="13" fill="#7f7f7f" xml:space="preserve" textLength="25.2"> │ </text>
+<rect x="184.8" y="0" width="235.2" height="17" fill="#1e3c5a"/>
+<text x="184.8" y="13" fill="#ffffff" xml:space="preserve" textLength="235.2">admin@http://localhost:18080</text>
+<rect x="420.0" y="0" width="25.2" height="17" fill="#1e3c5a"/>
+<text x="420.0" y="13" fill="#7f7f7f" xml:space="preserve" textLength="25.2"> │ </text>
+<rect x="445.2" y="0" width="134.4" height="17" fill="#1e3c5a"/>
+<text x="445.2" y="13" fill="#ffffff" xml:space="preserve" textLength="134.4">pulpcore 3.122.2</text>
+<rect x="579.6" y="0" width="25.2" height="17" fill="#1e3c5a"/>
+<text x="579.6" y="13" fill="#7f7f7f" xml:space="preserve" textLength="25.2"> │ </text>
+<rect x="604.8" y="0" width="487.2" height="17" fill="#1e3c5a"/>
+<text x="604.8" y="13" fill="#ffffff" xml:space="preserve" textLength="487.2">⟳ 5s                                                      </text>
+<text x="0.0" y="30" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="50.4">▾ Core</text>
+<text x="243.6" y="30" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="30" fill="#00cdcd" xml:space="preserve" textLength="8.4">┌</text>
+<text x="260.4" y="30" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="92.4"> Dashboard </text>
+<text x="352.8" y="30" fill="#00cdcd" xml:space="preserve" textLength="714.0">─────────────────────────────────────────────────────────────────────────────────────</text>
+<text x="1083.6" y="30" fill="#00cdcd" xml:space="preserve" textLength="8.4">┐</text>
+<text x="0.0" y="47" fill="#00cdcd" xml:space="preserve" textLength="92.4">  Dashboard</text>
+<text x="243.6" y="47" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="47" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="47" fill="#7f7f7f" xml:space="preserve" textLength="8.4">┌</text>
+<text x="268.8" y="47" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="67.2"> Health </text>
+<text x="336.0" y="47" fill="#7f7f7f" xml:space="preserve" textLength="386.4">────────────────────────────────────────────┐┌</text>
+<text x="722.4" y="47" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="58.8"> Tasks </text>
+<text x="781.2" y="47" fill="#7f7f7f" xml:space="preserve" textLength="302.4">───────────────────────────────────┐</text>
+<text x="1083.6" y="47" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="64" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Tasks                      </text>
+<text x="243.6" y="64" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="64" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="64" fill="#7f7f7f" xml:space="preserve" textLength="193.2">│Database              </text>
+<text x="453.6" y="64" fill="#00cd00" xml:space="preserve" textLength="33.6">✓ ok</text>
+<text x="705.6" y="64" fill="#7f7f7f" xml:space="preserve" textLength="201.6">││Running               </text>
+<text x="907.2" y="64" fill="#5c5cff" xml:space="preserve" textLength="8.4">0</text>
+<text x="1075.2" y="64" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="64" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="81" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Workers                    </text>
+<text x="243.6" y="81" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="81" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="81" fill="#7f7f7f" xml:space="preserve" textLength="193.2">│Redis                 </text>
+<text x="453.6" y="81" fill="#cdcd00" xml:space="preserve" textLength="126.0">– not connected</text>
+<text x="705.6" y="81" fill="#7f7f7f" xml:space="preserve" textLength="201.6">││Waiting               </text>
+<text x="907.2" y="81" fill="#cdcd00" xml:space="preserve" textLength="8.4">0</text>
+<text x="1075.2" y="81" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="81" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="98" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Task groups                </text>
+<text x="243.6" y="98" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="98" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="98" fill="#7f7f7f" xml:space="preserve" textLength="193.2">│Workers online        </text>
+<text x="453.6" y="98" fill="#00cd00" xml:space="preserve" textLength="8.4">2</text>
+<text x="705.6" y="98" fill="#7f7f7f" xml:space="preserve" textLength="201.6">││Failed (24h)          </text>
+<text x="907.2" y="98" fill="#cd0000" xml:space="preserve" textLength="8.4">1</text>
+<text x="1075.2" y="98" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="98" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="115" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Task schedules             </text>
+<text x="243.6" y="115" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="115" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="115" fill="#7f7f7f" xml:space="preserve" textLength="193.2">│API apps              </text>
+<text x="453.6" y="115" fill="#00cd00" xml:space="preserve" textLength="8.4">2</text>
+<text x="705.6" y="115" fill="#7f7f7f" xml:space="preserve" textLength="201.6">││Completed (24h)       </text>
+<text x="907.2" y="115" fill="#00cd00" xml:space="preserve" textLength="25.2">168</text>
+<text x="1075.2" y="115" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="115" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="132" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Repositories (all)         </text>
+<text x="243.6" y="132" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="132" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="132" fill="#7f7f7f" xml:space="preserve" textLength="193.2">│Content apps          </text>
+<text x="453.6" y="132" fill="#00cd00" xml:space="preserve" textLength="8.4">2</text>
+<text x="705.6" y="132" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="132" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="132" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="149" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Remotes (all)              </text>
+<text x="243.6" y="149" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="149" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="149" fill="#7f7f7f" xml:space="preserve" textLength="193.2">│Content origin        </text>
+<text x="453.6" y="149" fill="#d0d0d0" xml:space="preserve" textLength="252.0">http://localhost:18080        </text>
+<text x="705.6" y="149" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="149" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="149" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="166" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Distributions (all)        </text>
+<text x="243.6" y="166" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="166" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="166" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="705.6" y="166" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="166" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="166" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="183" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Publications (all)         </text>
+<text x="243.6" y="183" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="183" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="183" fill="#7f7f7f" xml:space="preserve" textLength="823.2">└────────────────────────────────────────────────────┘└──────────────────────────────────────────┘</text>
+<text x="1083.6" y="183" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="200" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Content (all)              </text>
+<text x="243.6" y="200" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="200" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="200" fill="#7f7f7f" xml:space="preserve" textLength="8.4">┌</text>
+<text x="268.8" y="200" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="75.6"> Storage </text>
+<text x="344.4" y="200" fill="#7f7f7f" xml:space="preserve" textLength="378.0">───────────────────────────────────────────┐┌</text>
+<text x="722.4" y="200" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="117.6"> Repositories </text>
+<text x="840.0" y="200" fill="#7f7f7f" xml:space="preserve" textLength="243.6">────────────────────────────┐</text>
+<text x="1083.6" y="200" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="217" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Repository versions        </text>
+<text x="243.6" y="217" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="217" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="217" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="268.8" y="217" fill="#cdcd00" xml:space="preserve" textLength="201.6">████████████████████████</text>
+<rect x="470.4" y="204" width="33.6" height="17" fill="#cdcd00"/>
+<text x="470.4" y="217" fill="#d0d0d0" xml:space="preserve" textLength="33.6">90% </text>
+<text x="504.0" y="217" fill="#cdcd00" xml:space="preserve" textLength="201.6">███████████████████     </text>
+<text x="705.6" y="217" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="722.4" y="217" fill="#d0d0d0" xml:space="preserve" textLength="84.0">file      </text>
+<text x="806.4" y="217" fill="#00cdcd" xml:space="preserve" textLength="193.2">███████████████████████</text>
+<text x="999.6" y="217" fill="#d0d0d0" xml:space="preserve" textLength="75.6"> 3       </text>
+<text x="1075.2" y="217" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="217" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="234" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Artifacts                  </text>
+<text x="243.6" y="234" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="234" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="234" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="268.8" y="234" fill="#d0d0d0" xml:space="preserve" textLength="436.8">269.7 GiB / 300.0 GiB  (30.3 GiB free)              </text>
+<text x="705.6" y="234" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="722.4" y="234" fill="#d0d0d0" xml:space="preserve" textLength="84.0">rpm       </text>
+<text x="806.4" y="234" fill="#00cdcd" xml:space="preserve" textLength="126.0">███████████████</text>
+<text x="932.4" y="234" fill="#d0d0d0" xml:space="preserve" textLength="142.8"> 2               </text>
+<text x="1075.2" y="234" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="234" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="251" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Uploads                    </text>
+<text x="243.6" y="251" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="251" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="251" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="268.8" y="251" fill="#00cdcd" xml:space="preserve" textLength="84.0">Components</text>
+<text x="705.6" y="251" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="722.4" y="251" fill="#d0d0d0" xml:space="preserve" textLength="84.0">container </text>
+<text x="806.4" y="251" fill="#00cdcd" xml:space="preserve" textLength="67.2">████████</text>
+<text x="873.6" y="251" fill="#d0d0d0" xml:space="preserve" textLength="201.6"> 1                      </text>
+<text x="1075.2" y="251" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="251" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="268" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Content guards (all)       </text>
+<text x="243.6" y="268" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="268" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="268" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  core            </text>
+<text x="420.0" y="268" fill="#d0d0d0" xml:space="preserve" textLength="285.6">3.122.2                           </text>
+<text x="705.6" y="268" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="268" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="268" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="285" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Users                      </text>
+<text x="243.6" y="285" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="285" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="285" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  deb             </text>
+<text x="420.0" y="285" fill="#d0d0d0" xml:space="preserve" textLength="285.6">3.11.1                            </text>
+<text x="705.6" y="285" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="285" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="285" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="302" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Groups                     </text>
+<text x="243.6" y="302" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="302" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="302" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  certguard       </text>
+<text x="420.0" y="302" fill="#d0d0d0" xml:space="preserve" textLength="285.6">3.122.2                           </text>
+<text x="705.6" y="302" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="302" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="302" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="319" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Roles                      </text>
+<text x="243.6" y="319" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="319" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="319" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  file            </text>
+<text x="420.0" y="319" fill="#d0d0d0" xml:space="preserve" textLength="285.6">3.122.2                           </text>
+<text x="705.6" y="319" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="319" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="319" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="336" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Access policies            </text>
+<text x="243.6" y="336" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="336" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="336" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  hugging_face    </text>
+<text x="420.0" y="336" fill="#d0d0d0" xml:space="preserve" textLength="285.6">0.3.2                             </text>
+<text x="705.6" y="336" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="336" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="336" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="353" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Domains                    </text>
+<text x="243.6" y="353" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="353" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="353" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  python          </text>
+<text x="420.0" y="353" fill="#d0d0d0" xml:space="preserve" textLength="285.6">3.37.1                            </text>
+<text x="705.6" y="353" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="353" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="353" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="370" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Signing services           </text>
+<text x="243.6" y="370" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="370" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="370" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  gem             </text>
+<text x="420.0" y="370" fill="#d0d0d0" xml:space="preserve" textLength="285.6">0.8.0                             </text>
+<text x="705.6" y="370" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="370" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="370" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="387" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Upstream Pulps             </text>
+<text x="243.6" y="387" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="387" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="387" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  npm             </text>
+<text x="420.0" y="387" fill="#d0d0d0" xml:space="preserve" textLength="285.6">0.10.2                            </text>
+<text x="705.6" y="387" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="387" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="387" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="404" fill="#d0d0d0" xml:space="preserve" textLength="243.6">  Vulnerability reports      </text>
+<text x="243.6" y="404" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="404" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="404" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  maven           </text>
+<text x="420.0" y="404" fill="#d0d0d0" xml:space="preserve" textLength="285.6">0.35.0                            </text>
+<text x="705.6" y="404" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="404" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="404" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="421" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="84.0">▸ pulpcore</text>
+<text x="243.6" y="421" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="421" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="421" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  container       </text>
+<text x="420.0" y="421" fill="#d0d0d0" xml:space="preserve" textLength="285.6">2.30.0                            </text>
+<text x="705.6" y="421" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="421" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="421" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="438" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="75.6">▸ ansible</text>
+<text x="243.6" y="438" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="438" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="438" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  ansible         </text>
+<text x="420.0" y="438" fill="#d0d0d0" xml:space="preserve" textLength="285.6">0.30.2                            </text>
+<text x="705.6" y="438" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="438" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="438" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="455" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="92.4">▸ certguard</text>
+<text x="243.6" y="455" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="455" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="455" fill="#7f7f7f" xml:space="preserve" textLength="159.6">│  rpm             </text>
+<text x="420.0" y="455" fill="#d0d0d0" xml:space="preserve" textLength="285.6">3.39.2                            </text>
+<text x="705.6" y="455" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="455" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="455" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="472" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="92.4">▸ container</text>
+<text x="243.6" y="472" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="472" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="472" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="705.6" y="472" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="472" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="472" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="489" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="42.0">▸ deb</text>
+<text x="243.6" y="489" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="489" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="489" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="705.6" y="489" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="489" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="489" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="506" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="50.4">▸ file</text>
+<text x="243.6" y="506" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="506" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="506" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="705.6" y="506" fill="#7f7f7f" xml:space="preserve" textLength="16.8">││</text>
+<text x="1075.2" y="506" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="1083.6" y="506" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="523" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="42.0">▸ gem</text>
+<text x="243.6" y="523" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="523" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="260.4" y="523" fill="#7f7f7f" xml:space="preserve" textLength="823.2">└────────────────────────────────────────────────────┘└──────────────────────────────────────────┘</text>
+<text x="1083.6" y="523" fill="#00cdcd" xml:space="preserve" textLength="8.4">│</text>
+<text x="0.0" y="540" fill="#00cdcd" font-weight="bold" xml:space="preserve" textLength="117.6">▸ hugging_face</text>
+<text x="243.6" y="540" fill="#7f7f7f" xml:space="preserve" textLength="8.4">│</text>
+<text x="252.0" y="540" fill="#00cdcd" xml:space="preserve" textLength="840.0">└──────────────────────────────────────────────────────────────────────────────────────────────────┘</text>
+<text x="0.0" y="557" fill="#7f7f7f" xml:space="preserve" textLength="201.6"> ⚙ 0 running · 0 waiting</text>
+<text x="0.0" y="574" fill="#cd00cd" font-weight="bold" xml:space="preserve" textLength="33.6"> &lt;t&gt;</text>
+<text x="33.6" y="574" fill="#d0d0d0" xml:space="preserve" textLength="50.4"> tasks</text>
+<text x="84.0" y="574" fill="#cd00cd" font-weight="bold" xml:space="preserve" textLength="33.6"> &lt;F&gt;</text>
+<text x="117.6" y="574" fill="#d0d0d0" xml:space="preserve" textLength="109.2"> failed tasks</text>
+<text x="226.8" y="574" fill="#cd00cd" font-weight="bold" xml:space="preserve" textLength="33.6"> &lt;w&gt;</text>
+<text x="260.4" y="574" fill="#d0d0d0" xml:space="preserve" textLength="67.2"> workers</text>
+<text x="327.6" y="574" fill="#cd00cd" font-weight="bold" xml:space="preserve" textLength="33.6"> &lt;r&gt;</text>
+<text x="361.2" y="574" fill="#d0d0d0" xml:space="preserve" textLength="109.2"> repositories</text>
+<text x="470.4" y="574" fill="#cd00cd" font-weight="bold" xml:space="preserve" textLength="33.6"> &lt;:&gt;</text>
+<text x="504.0" y="574" fill="#d0d0d0" xml:space="preserve" textLength="67.2"> command</text>
+<text x="571.2" y="574" fill="#cd00cd" font-weight="bold" xml:space="preserve" textLength="33.6"> &lt;?&gt;</text>
+<text x="604.8" y="574" fill="#d0d0d0" xml:space="preserve" textLength="487.2"> help                                                     </text>
+</svg>

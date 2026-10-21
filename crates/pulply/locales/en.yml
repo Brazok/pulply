@@ -1,0 +1,366 @@
+_version: 1
+
+header:
+  context: "ctx:"
+  paused: paused
+  unsupported: "⚠ unsupported pulpcore (< 3.50)"
+
+status:
+  running: running
+  waiting: waiting
+
+sidebar:
+  core: Core
+  dashboard: Dashboard
+  all: all
+  loading: loading schema…
+
+resource:
+  repositories: Repositories
+  remotes: Remotes
+  distributions: Distributions
+  publications: Publications
+  content: Content
+  acs: ACS
+  contentguards: Content guards
+  exporters: Exporters
+  importers: Importers
+  tasks: Tasks
+  task-groups: Task groups
+  task-schedules: Task schedules
+  workers: Workers
+  users: Users
+  groups: Groups
+  roles: Roles
+  artifacts: Artifacts
+  uploads: Uploads
+  access_policies: Access policies
+  signing-services: Signing services
+  upstream-pulps: Upstream Pulps
+  domains: Domains
+  repository_versions: Repository versions
+  vuln_report: Vulnerability reports
+
+col:
+  age: AGE
+  base: BASE
+  base_path: BASE PATH
+  base_url: BASE URL
+  completed: COMPLETED
+  content: CONTENT
+  duration: DURATION
+  file: FILE
+  heartbeat: HEARTBEAT
+  name: NAME
+  policy: POLICY
+  remote: REMOTE
+  repository: REPOSITORY
+  resources: RESOURCES
+  retain: RETAIN
+  serves: SERVES
+  sha256: SHA256
+  size: SIZE
+  state: STATE
+  task: TASK
+  url: URL
+  version: VERSION
+  worker: WORKER
+
+list:
+  loading: Loading…
+  empty: No resources.
+  state: state
+  pick: "Select %{what}"
+  pick_content: "Add content to %{repo}"
+  pick_repository: "Add %{count} units to repository…"
+
+hint:
+  run: run
+  actions: actions
+  roles: roles
+  add_role: add role
+  remove_role: remove role
+  open: open
+  describe: describe
+  filter: filter
+  sort: sort
+  task_state: state filter
+  follow: follow link
+  scroll: scroll
+  present: content
+  added: added
+  removed: removed
+  tasks: tasks
+  failed_tasks: failed tasks
+  workers: workers
+  repositories: repositories
+  switch: switch
+  contexts: contexts
+  submit: submit
+  retry: retry
+  quit: quit
+  command: command
+  help: help
+  confirm: confirm
+  choose: choose
+  mark: mark
+  cancel_task: cancel task
+  delete: delete
+  close: close
+  select: select
+  cancel: cancel
+  create: create
+  edit: edit
+  field: field
+  clear: clear
+  yaml: edit YAML
+  sync: sync
+  publish: publish
+  distribute: distribute
+  rollback: rollback
+  add_content: add content
+  remove_content: remove
+  upload: upload
+  parent: parent dir
+  hidden: hidden files
+  content_type: content type
+  background: hide (keeps running)
+  diff: diff
+  diff_units: show units
+  diff_pane: next type
+  xray: relations
+
+help:
+  title: Help
+  global: Global
+  view: This view
+  commands: Commands
+  command: command mode (resources, ctx, quit)
+  filter: filter (-q expr, -f key=value for the API)
+  sidebar_focus: focus sidebar / main
+  sidebar_toggle: show / hide sidebar
+  refresh: refresh now
+  pause: pause / resume refresh
+  back: back
+  history: history back / forward
+  quit: quit
+
+notice:
+  paused: Refresh paused
+  resumed: Refresh resumed
+  schema_loading: Schema still loading, try again in a moment
+  schema_reload: Reloading OpenAPI schema…
+  schema_failed: "Cannot load OpenAPI schema: %{error}"
+  unknown_context: "Unknown context: %{name}"
+  unknown_resource: "Unknown resource: %{name}"
+  unsupported: "pulpcore %{version} is older than 3.50: some views may not work"
+  readonly: "Read-only mode: modifications are disabled"
+  done: "✔ %{label}"
+  task_completed: "✔ %{label} completed"
+  task_failed: "✗ %{label} failed: %{error}"
+  distribution_url: "Distribution available at %{url}"
+
+confirm:
+  title: Confirm
+  "yes": "Yes"
+  "no": "No"
+  delete: "Delete %{what}?"
+  cancel: "Cancel %{what}?"
+  rollback: "Create a new version of %{repo} with the content of %{version}?"
+  remove_content: "Remove %{what} from %{repo}?"
+  action: "Run %{verb} on %{name}?"
+
+action:
+  delete: "delete %{name}"
+  cancel: "cancel %{name}"
+  n_resources: "%{count} resources"
+  create: "create %{name}"
+  update: "update %{name}"
+  sync: "sync %{name}"
+  publish: "publish %{name}"
+  distribute: "distribute %{name}"
+  rollback: "rollback %{name}"
+  add_content: "add %{count} units to %{name}"
+  remove_content: "remove %{count} units from %{name}"
+  upload: "upload %{name}"
+  run: "%{verb} %{name}"
+
+form:
+  create: "New · %{what}"
+  edit: "Edit · %{what}"
+  sync: "Sync · %{what}"
+  required: required
+  not_integer: not an integer
+  not_number: not a number
+  bad_json: "invalid JSON: %{error}"
+  no_changes: No changes
+  default: default
+  pick: pick
+  submit: Submit
+  submitting: Submitting…
+  submit_help: "Enter or Ctrl-S to submit"
+
+op:
+  purge:
+    title: Purge finished tasks
+    label: purge tasks
+    confirm: "Permanently delete the finished tasks matching these criteria?"
+  orphans:
+    title: Orphan cleanup
+    label: orphan cleanup
+    confirm: "Delete orphaned content and artifacts? This cannot be undone."
+    count: "≈ %{count} content units are orphaned right now"
+  reclaim:
+    title: Reclaim disk space
+    label: reclaim space
+    confirm: "Remove the artifacts of these repositories (content becomes on-demand)?"
+  repair:
+    title: Repair storage
+    label: repair
+    confirm: "Check every artifact and re-download missing or corrupted files?"
+
+editor:
+  help: "Save to apply changed fields (PATCH). Empty the file to cancel."
+  error: ERROR
+  unknown_field: "%{field} is not an editable field"
+  not_mapping: the document must be a mapping of fields
+  exit: "%{program} exited with %{code}"
+  not_editable: This resource cannot be edited
+  cancelled: Edit cancelled
+
+connect:
+  title: Connection
+  auth_title: Authentication
+  context: Context
+  connecting: Connecting…
+  password: Password
+  failed: Connection failed
+
+ctx:
+  title: Contexts
+  name: NAME
+  url: URL
+  user: USER
+  mode: MODE
+  source: SOURCE
+  status: STATUS
+  readonly: read-only
+  readwrite: read-write
+
+plugin:
+  started: "Plugin %{name} started"
+  failed: "Plugin %{name} failed: %{status}"
+  press_enter: "[pulply] Press Enter to return…"
+
+error:
+  forbidden: "Permission denied: your user is not allowed to do this"
+
+dash:
+  title: Dashboard
+  health: Health
+  tasks: Tasks
+  storage: Storage
+  repositories: Repositories
+  database: Database
+  redis: Redis
+  workers: Workers online
+  missing: missing
+  api_apps: API apps
+  content_apps: Content apps
+  content_origin: Content origin
+  domains: Domains
+  enabled: enabled
+  ok: ok
+  down: down
+  not_connected: not connected
+  running: Running
+  waiting: Waiting
+  failed_24h: Failed (24h)
+  completed_24h: Completed (24h)
+  free: free
+  storage_unknown: Storage usage not reported
+  components: Components
+  no_repositories: No repositories
+  schema_loading: Loading schema…
+
+diff:
+  title: Diff
+  computing: Comparing versions…
+  consecutive: "Consecutive versions: changes recorded by Pulp"
+  sets: "Arbitrary versions: computed set difference"
+  identical: Same content
+  select: "Enter: list the added and removed units of the selected type"
+  more: "… %{count} more"
+
+xray:
+  title: Relations
+  loading: Following relations…
+  distribution: distribution
+  publication: publication
+  version: version
+  repository: repository
+  remote: remote
+  guard: content guard
+  serves: served by
+  none: (none)
+
+upload:
+  pick_title: Upload files
+  title: Uploads
+  marked: "%{count} marked"
+  content_type: Content type
+  repository: Repository
+  directory: Directory
+  chunk: "Chunks of %{size} (upload_chunk_size)"
+  queued: queued
+  uploading: uploading
+  creating: creating content
+  done: done
+  failed: failed
+
+detail:
+  usage: Usage
+  collections: Collections
+
+admin:
+  actions: "Actions · %{name}"
+  action_title: "%{verb} · %{name}"
+  roles_title: "Roles · %{name}"
+  no_roles: No role assigned on this resource
+  me: Current user
+  user: User
+  access: Access
+  access_all: everything (staff or filtering disabled)
+  access_limited: "%{count} global permissions + object roles"
+  access_objects: object roles only (global permissions unreadable)
+  no_details: No details readable
+
+summary:
+  title: Content
+  created: Created
+  base: Base version
+  empty: This version has no content.
+  type: TYPE
+  present: PRESENT
+  added: ADDED
+  removed: REMOVED
+
+task:
+  overview: Task
+  name: Name
+  state: State
+  created: Created
+  started: Started
+  finished: Finished
+  duration: Duration
+  cid: Correlation ID
+  worker: Worker
+  parent: Parent task
+  group: Task group
+  created_by: Created by
+  progress: Progress
+  created_resources: Created resources
+  reserved: Reserved resources
+  shared: (shared)
+  children: Child tasks
+  error: Error

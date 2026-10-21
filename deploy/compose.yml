@@ -1,0 +1,28 @@
+# Single-container Pulp (pulp-oci-images) for development and integration tests.
+#   PULP_PORT=8080 docker compose -f deploy/compose.yml up -d
+# API: http://localhost:${PULP_PORT}/pulp/api/v3/  (admin / password)
+services:
+  pulp:
+    image: docker.io/pulp/pulp:latest
+    ports:
+      - "${PULP_PORT:-8080}:80"
+    volumes:
+      - ./settings:/etc/pulp:Z
+      - pulp_storage:/var/lib/pulp
+      - pulp_pgsql:/var/lib/pgsql
+      - pulp_containers:/var/lib/containers
+    environment:
+      PULP_DEFAULT_ADMIN_PASSWORD: password
+      PULP_CONTENT_ORIGIN: "http://localhost:${PULP_PORT:-8080}"
+      PULP_ANSIBLE_API_HOSTNAME: "http://localhost:${PULP_PORT:-8080}"
+      PULP_ANSIBLE_CONTENT_HOSTNAME: "http://localhost:${PULP_PORT:-8080}/pulp/content"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/pulp/api/v3/status/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pulp_storage:
+  pulp_pgsql:
+  pulp_containers:

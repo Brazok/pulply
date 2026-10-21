@@ -1,0 +1,366 @@
+_version: 1
+
+header:
+  context: "ctx :"
+  paused: en pause
+  unsupported: "⚠ pulpcore non supporté (< 3.50)"
+
+status:
+  running: en cours
+  waiting: en attente
+
+sidebar:
+  core: Core
+  dashboard: Tableau de bord
+  all: tous
+  loading: chargement du schéma…
+
+resource:
+  repositories: Dépôts
+  remotes: Remotes
+  distributions: Distributions
+  publications: Publications
+  content: Contenu
+  acs: ACS
+  contentguards: Content guards
+  exporters: Exporteurs
+  importers: Importeurs
+  tasks: Tâches
+  task-groups: Groupes de tâches
+  task-schedules: Planifications
+  workers: Workers
+  users: Utilisateurs
+  groups: Groupes
+  roles: Rôles
+  artifacts: Artefacts
+  uploads: Téléversements
+  access_policies: Politiques d'accès
+  signing-services: Services de signature
+  upstream-pulps: Pulp amont
+  domains: Domaines
+  repository_versions: Versions de dépôts
+  vuln_report: Rapports de vulnérabilités
+
+col:
+  age: ÂGE
+  base: BASE
+  base_path: CHEMIN
+  base_url: URL DE BASE
+  completed: TERMINÉ
+  content: CONTENU
+  duration: DURÉE
+  file: FICHIER
+  heartbeat: HEARTBEAT
+  name: NOM
+  policy: POLITIQUE
+  remote: REMOTE
+  repository: DÉPÔT
+  resources: RESSOURCES
+  retain: RÉTENTION
+  serves: SERT
+  sha256: SHA256
+  size: TAILLE
+  state: ÉTAT
+  task: TÂCHE
+  url: URL
+  version: VERSION
+  worker: WORKER
+
+list:
+  loading: Chargement…
+  empty: Aucune ressource.
+  state: état
+  pick: "Choisir %{what}"
+  pick_content: "Ajouter du contenu à %{repo}"
+  pick_repository: "Ajouter %{count} unités au dépôt…"
+
+hint:
+  run: exécuter
+  actions: actions
+  roles: rôles
+  add_role: ajouter un rôle
+  remove_role: retirer un rôle
+  open: ouvrir
+  describe: décrire
+  filter: filtrer
+  sort: trier
+  task_state: filtre d'état
+  follow: suivre le lien
+  scroll: défiler
+  present: contenu
+  added: ajoutés
+  removed: retirés
+  tasks: tâches
+  failed_tasks: tâches échouées
+  workers: workers
+  repositories: dépôts
+  switch: basculer
+  contexts: contextes
+  submit: valider
+  retry: réessayer
+  quit: quitter
+  command: commande
+  help: aide
+  confirm: confirmer
+  choose: choisir
+  mark: marquer
+  cancel_task: annuler la tâche
+  delete: supprimer
+  close: fermer
+  select: sélectionner
+  cancel: annuler
+  create: créer
+  edit: modifier
+  field: champ
+  clear: effacer
+  yaml: éditer en YAML
+  sync: synchroniser
+  publish: publier
+  distribute: distribuer
+  rollback: revenir à cette version
+  add_content: ajouter du contenu
+  remove_content: retirer
+  upload: téléverser
+  parent: dossier parent
+  hidden: fichiers cachés
+  content_type: type de contenu
+  background: masquer (continue)
+  diff: diff
+  diff_units: voir les unités
+  diff_pane: type suivant
+  xray: relations
+
+help:
+  title: Aide
+  global: Global
+  view: Cette vue
+  commands: Commandes
+  command: mode commande (ressources, ctx, quit)
+  filter: filtre (-q expr, -f clé=valeur pour l'API)
+  sidebar_focus: focus sidebar / vue
+  sidebar_toggle: afficher / masquer la sidebar
+  refresh: rafraîchir maintenant
+  pause: pause / reprise du rafraîchissement
+  back: retour
+  history: historique arrière / avant
+  quit: quitter
+
+notice:
+  paused: Rafraîchissement en pause
+  resumed: Rafraîchissement repris
+  schema_loading: Schéma en cours de chargement, réessayez dans un instant
+  schema_reload: Rechargement du schéma OpenAPI…
+  schema_failed: "Impossible de charger le schéma OpenAPI : %{error}"
+  unknown_context: "Contexte inconnu : %{name}"
+  unknown_resource: "Ressource inconnue : %{name}"
+  unsupported: "pulpcore %{version} est antérieur à 3.50 : certaines vues peuvent ne pas fonctionner"
+  readonly: "Mode lecture seule : les modifications sont désactivées"
+  done: "✔ %{label}"
+  task_completed: "✔ %{label} terminé"
+  task_failed: "✗ échec de %{label} : %{error}"
+  distribution_url: "Distribution disponible sur %{url}"
+
+confirm:
+  title: Confirmation
+  "yes": "Oui"
+  "no": "Non"
+  delete: "Supprimer %{what} ?"
+  cancel: "Annuler %{what} ?"
+  rollback: "Créer une nouvelle version de %{repo} avec le contenu de %{version} ?"
+  remove_content: "Retirer %{what} de %{repo} ?"
+  action: "Exécuter %{verb} sur %{name} ?"
+
+action:
+  delete: "suppression de %{name}"
+  cancel: "annulation de %{name}"
+  n_resources: "%{count} ressources"
+  create: "création de %{name}"
+  update: "modification de %{name}"
+  sync: "synchronisation de %{name}"
+  publish: "publication de %{name}"
+  distribute: "distribution de %{name}"
+  rollback: "retour arrière de %{name}"
+  add_content: "ajout de %{count} unités à %{name}"
+  remove_content: "retrait de %{count} unités de %{name}"
+  upload: "téléversement de %{name}"
+  run: "%{verb} %{name}"
+
+form:
+  create: "Nouveau · %{what}"
+  edit: "Modifier · %{what}"
+  sync: "Synchroniser · %{what}"
+  required: obligatoire
+  not_integer: entier attendu
+  not_number: nombre attendu
+  bad_json: "JSON invalide : %{error}"
+  no_changes: Aucune modification
+  default: défaut
+  pick: choisir
+  submit: Valider
+  submitting: Envoi…
+  submit_help: "Entrée ou Ctrl-S pour valider"
+
+op:
+  purge:
+    title: Purger les tâches terminées
+    label: purge des tâches
+    confirm: "Supprimer définitivement les tâches terminées correspondant à ces critères ?"
+  orphans:
+    title: Nettoyage des orphelins
+    label: nettoyage des orphelins
+    confirm: "Supprimer le contenu et les artefacts orphelins ? Opération irréversible."
+    count: "≈ %{count} unités de contenu sont actuellement orphelines"
+  reclaim:
+    title: Récupérer l'espace disque
+    label: récupération d'espace
+    confirm: "Supprimer les artefacts de ces dépôts (le contenu passe en on-demand) ?"
+  repair:
+    title: Réparer le stockage
+    label: réparation
+    confirm: "Vérifier chaque artefact et retélécharger les fichiers manquants ou corrompus ?"
+
+editor:
+  help: "Enregistrer pour appliquer les champs modifiés (PATCH). Vider le fichier pour annuler."
+  error: ERREUR
+  unknown_field: "%{field} n'est pas un champ modifiable"
+  not_mapping: le document doit être un dictionnaire de champs
+  exit: "%{program} s'est terminé avec %{code}"
+  not_editable: Cette ressource n'est pas modifiable
+  cancelled: Édition annulée
+
+connect:
+  title: Connexion
+  auth_title: Authentification
+  context: Contexte
+  connecting: Connexion…
+  password: Mot de passe
+  failed: Échec de la connexion
+
+ctx:
+  title: Contextes
+  name: NOM
+  url: URL
+  user: UTILISATEUR
+  mode: MODE
+  source: SOURCE
+  status: STATUT
+  readonly: lecture seule
+  readwrite: lecture-écriture
+
+plugin:
+  started: "Plugin %{name} lancé"
+  failed: "Échec du plugin %{name} : %{status}"
+  press_enter: "[pulply] Appuyez sur Entrée pour revenir…"
+
+error:
+  forbidden: "Permission refusée : votre utilisateur n'a pas ce droit"
+
+dash:
+  title: Tableau de bord
+  health: Santé
+  tasks: Tâches
+  storage: Stockage
+  repositories: Dépôts
+  database: Base de données
+  redis: Redis
+  workers: Workers en ligne
+  missing: manquants
+  api_apps: Apps API
+  content_apps: Apps de contenu
+  content_origin: Origine du contenu
+  domains: Domaines
+  enabled: activés
+  ok: ok
+  down: en panne
+  not_connected: non connecté
+  running: En cours
+  waiting: En attente
+  failed_24h: Échouées (24 h)
+  completed_24h: Terminées (24 h)
+  free: libre
+  storage_unknown: Utilisation du stockage non rapportée
+  components: Composants
+  no_repositories: Aucun dépôt
+  schema_loading: Chargement du schéma…
+
+diff:
+  title: Diff
+  computing: Comparaison des versions…
+  consecutive: "Versions consécutives : changements enregistrés par Pulp"
+  sets: "Versions quelconques : différence d'ensembles calculée"
+  identical: Contenu identique
+  select: "Entrée : lister les unités ajoutées et retirées du type sélectionné"
+  more: "… %{count} de plus"
+
+xray:
+  title: Relations
+  loading: Parcours des relations…
+  distribution: distribution
+  publication: publication
+  version: version
+  repository: dépôt
+  remote: remote
+  guard: content guard
+  serves: servi par
+  none: (aucun)
+
+upload:
+  pick_title: Téléverser des fichiers
+  title: Téléversements
+  marked: "%{count} marqués"
+  content_type: Type de contenu
+  repository: Dépôt
+  directory: Dossier
+  chunk: "Morceaux de %{size} (upload_chunk_size)"
+  queued: en attente
+  uploading: envoi
+  creating: création du contenu
+  done: terminé
+  failed: échec
+
+detail:
+  usage: Utilisation
+  collections: Collections
+
+admin:
+  actions: "Actions · %{name}"
+  action_title: "%{verb} · %{name}"
+  roles_title: "Rôles · %{name}"
+  no_roles: Aucun rôle attribué sur cette ressource
+  me: Utilisateur courant
+  user: Utilisateur
+  access: Accès
+  access_all: tout (staff ou filtrage désactivé)
+  access_limited: "%{count} permissions globales + rôles d'objet"
+  access_objects: rôles d'objet uniquement (permissions globales illisibles)
+  no_details: Aucun détail lisible
+
+summary:
+  title: Contenu
+  created: Créée
+  base: Version de base
+  empty: Cette version n'a pas de contenu.
+  type: TYPE
+  present: PRÉSENTS
+  added: AJOUTÉS
+  removed: RETIRÉS
+
+task:
+  overview: Tâche
+  name: Nom
+  state: État
+  created: Créée
+  started: Démarrée
+  finished: Terminée
+  duration: Durée
+  cid: ID de corrélation
+  worker: Worker
+  parent: Tâche parente
+  group: Groupe
+  created_by: Créée par
+  progress: Progression
+  created_resources: Ressources créées
+  reserved: Ressources réservées
+  shared: (partagée)
+  children: Sous-tâches
+  error: Erreur
