@@ -120,6 +120,10 @@ hint:
   hidden: hidden files
   content_type: content type
   background: hide (keeps running)
+  diff: diff
+  diff_units: show units
+  diff_pane: next type
+  xray: relations
 
 help:
   title: Help
@@ -263,6 +267,27 @@ dash:
   components: Components
   no_repositories: No repositories
   schema_loading: Loading schema…
+
+diff:
+  title: Diff
+  computing: Comparing versions…
+  consecutive: "Consecutive versions: changes recorded by Pulp"
+  sets: "Arbitrary versions: computed set difference"
+  identical: Same content
+  select: "Enter: list the added and removed units of the selected type"
+  more: "… %{count} more"
+
+xray:
+  title: Relations
+  loading: Following relations…
+  distribution: distribution
+  publication: publication
+  version: version
+  repository: repository
+  remote: remote
+  guard: content guard
+  serves: served by
+  none: (none)
 
 upload:
   pick_title: Upload files

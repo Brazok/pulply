@@ -120,6 +120,10 @@ hint:
   hidden: fichiers cachés
   content_type: type de contenu
   background: masquer (continue)
+  diff: diff
+  diff_units: voir les unités
+  diff_pane: type suivant
+  xray: relations
 
 help:
   title: Aide
@@ -263,6 +267,27 @@ dash:
   components: Composants
   no_repositories: Aucun dépôt
   schema_loading: Chargement du schéma…
+
+diff:
+  title: Diff
+  computing: Comparaison des versions…
+  consecutive: "Versions consécutives : changements enregistrés par Pulp"
+  sets: "Versions quelconques : différence d'ensembles calculée"
+  identical: Contenu identique
+  select: "Entrée : lister les unités ajoutées et retirées du type sélectionné"
+  more: "… %{count} de plus"
+
+xray:
+  title: Relations
+  loading: Parcours des relations…
+  distribution: distribution
+  publication: publication
+  version: version
+  repository: dépôt
+  remote: remote
+  guard: content guard
+  serves: servi par
+  none: (aucun)
 
 upload:
   pick_title: Téléverser des fichiers

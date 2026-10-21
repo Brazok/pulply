@@ -15,7 +15,7 @@ use rust_i18n::t;
 use serde_json::Value;
 
 use super::columns::{self, Column, SortValue};
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, form, summary, task, upload};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, actions, detail, diff, form, summary, task, upload};
 use crate::format;
 use crate::labels;
 
@@ -352,6 +352,18 @@ impl ListView {
         self.selected_type(ctx).is_some_and(|t| t.ops.delete)
     }
 
+    /// Versions to diff: the two marked ones, or the selected version and its predecessor.
+    fn diff_target(&self) -> Option<(String, String)> {
+        let is_version = |h: &str| pulply_api::models::version_number(h).is_some();
+        if self.marked.len() == 2 && self.marked.iter().all(|h| is_version(h)) {
+            let mut it = self.marked.iter();
+            return Some((it.next()?.clone(), it.next()?.clone()));
+        }
+        let row = self.selected()?;
+        let href = row.href().filter(|h| is_version(h))?;
+        Some((diff::DiffView::previous_of(row)?, href.to_owned()))
+    }
+
     /// Upload destination: in a content list its type (into the version's repository if
     /// opened from one); on a repository row, the plugin's upload-capable types.
     fn upload_target(&self, ctx: &Ctx) -> Option<(Vec<String>, Option<String>)> {
@@ -475,6 +487,9 @@ impl View for ListView {
         if self.kind == Kind::Tasks {
             h.push(Hint::new("f", t!("hint.task_state")));
         }
+        if self.diff_target().is_some() {
+            h.push(Hint::new("x", t!("hint.diff")));
+        }
         if !ctx.readonly() {
             if self.own_type(ctx).is_some_and(|t| t.ops.create) {
                 h.push(Hint::new("c", t!("hint.create")));
@@ -582,6 +597,10 @@ impl View for ListView {
                     .unwrap_or_else(|| format::href(href, ctx.names));
                 actions::distribute(href, &name, ctx)
             }
+            KeyCode::Char('x') if self.diff_target().is_some() => match self.diff_target() {
+                Some((a, b)) => Outcome::Push(Box::new(diff::DiffView::new(a, b))),
+                None => Outcome::None,
+            },
             KeyCode::Char('R')
                 if self.selected().and_then(|r| r.href()).is_some_and(|h| {
                     pulply_api::models::version_number(h).is_some()

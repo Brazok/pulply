@@ -8,6 +8,7 @@ pub mod connect;
 pub mod contexts;
 pub mod dashboard;
 pub mod detail;
+pub mod diff;
 pub mod form;
 pub mod lines;
 pub mod list;
@@ -41,6 +42,8 @@ pub enum Payload {
     Dashboard(Box<dashboard::DashboardData>),
     Task { task: Value, children: Vec<Value> },
     Reachability(Vec<(String, Result<String, String>)>),
+    Diff(Box<diff::DiffData>),
+    DiffDetail(Vec<diff::DiffLine>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

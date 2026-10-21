@@ -13,7 +13,7 @@ use ratatui::widgets::{Cell, Paragraph, Row, Table, TableState};
 use rust_i18n::t;
 use serde_json::Value;
 
-use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, detail, list};
+use super::{Ctx, Fetch, FetchKind, Hint, Outcome, Payload, View, detail, diff, list};
 use crate::format;
 
 #[derive(Debug, Default, Clone)]
@@ -80,12 +80,16 @@ impl View for SummaryView {
     }
 
     fn hints(&self, _ctx: &Ctx) -> Vec<Hint> {
-        vec![
+        let mut h = vec![
             Hint::new("↵", t!("hint.present")),
             Hint::new("+", t!("hint.added")),
             Hint::new("-", t!("hint.removed")),
             Hint::new("d", t!("hint.describe")),
-        ]
+        ];
+        if self.version.as_ref().and_then(diff::DiffView::previous_of).is_some() {
+            h.push(Hint::new("x", t!("hint.diff")));
+        }
+        h
     }
 
     fn handle_key(&mut self, key: KeyEvent, ctx: &Ctx) -> Outcome {
@@ -98,6 +102,12 @@ impl View for SummaryView {
             KeyCode::Char('+') => return self.open(ADDED, ctx),
             KeyCode::Char('-') => return self.open(REMOVED, ctx),
             KeyCode::Char('d') => return Outcome::Push(Box::new(detail::DetailView::new(self.href.clone()))),
+            KeyCode::Char('x') => {
+                return match self.version.as_ref().and_then(diff::DiffView::previous_of) {
+                    Some(prev) => Outcome::Push(Box::new(diff::DiffView::new(prev, self.href.clone()))),
+                    None => Outcome::None,
+                };
+            }
             _ => return Outcome::Ignored,
         }
         Outcome::None
