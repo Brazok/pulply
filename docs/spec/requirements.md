@@ -169,7 +169,7 @@ Chaque vue sur mesure fournit des colonnes, un describe et des actions spécifiq
 
 ### R16 — Qualité, exploitation, distribution
 
-- **R16.1** Logs dans `$XDG_STATE_HOME/pulply/pulply.log` (rotation), niveau via `-l` ; jamais de mot de passe dans les logs.
+- **R16.1** Logs dans un fichier unique `$XDG_STATE_HOME/pulply/pulply.log` (`~/.local/state/pulply/` sous Linux), niveau via `-l` ; jamais de mot de passe dans les logs. QUAND le fichier dépasse 10 Mo ALORS pulply DOIT le renommer en `pulply.log.1` (en supprimant le précédent) et repartir d'un fichier vide, l'espace total restant borné à 20 Mo. Les anciens fichiers journaliers `pulply.<date>.log` DOIVENT être supprimés au démarrage.
 - **R16.2** Aucune panique ne doit laisser le terminal dans un état cassé (restauration via hook de panique).
 - **R16.3** Artefacts : crates.io, GitHub Releases (linux-gnu, linux-musl, macOS, x86_64 + aarch64), `.rpm`, `.deb`, formule Homebrew, image OCI.
 - **R16.4** Démarrage jusqu'au premier rendu < 300 ms avec schéma en cache (hors latence réseau).

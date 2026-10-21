@@ -205,7 +205,7 @@ Fichiers annexes, dans le répertoire de `config.toml` (R14) : `hotkeys.toml` (t
 | i18n | `rust-i18n` + `sys-locale` |
 | Chemins | `directories` |
 | Hash | `sha2` |
-| Erreurs / logs | `thiserror` (api), `color-eyre` (bin), `tracing`, `tracing-appender` |
+| Erreurs / logs | `thiserror` (api), `color-eyre` (bin), `tracing`, `tracing-appender` (écriture non bloquante ; rotation par taille maison, R16.1, `tracing-appender` ne rotant que par date) |
 | Tests | `insta` (snapshots `TestBackend`), `wiremock`, `tokio::test` |
 
 ## 6. Stratégie de test

@@ -62,3 +62,4 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 ## Correctifs
 
 - [x] Domaine appliqué seulement si le serveur a les domaines activés, `status/` lu hors domaine, notification si un domaine configuré est ignoré — R1.8, R1.9, R2.1
+- [ ] Logs dans un fichier unique `pulply.log` plafonné à 10 Mo, une seule archive `pulply.log.1`, suppression des anciens logs journaliers — R16.1
