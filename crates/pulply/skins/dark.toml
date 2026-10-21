@@ -1,0 +1,17 @@
+# pulply built-in dark skin (default).
+# Colors: names (cyan, dark_gray, light_blue…), "#rrggbb" or ANSI index ("208").
+# Copy to ~/.config/pulply/skins/<name>.toml and set `skin = "<name>"`; a skin may
+# start from another one with `inherit = "light"` and only override some colors.
+
+muted = "dark_gray"
+accent = "cyan"
+border = "dark_gray"
+border_focus = "cyan"
+header_bg = "#1e3c5a"
+header_fg = "white"
+selection_bg = "#28466e"
+success = "green"
+warning = "yellow"
+error = "red"
+info = "light_blue"
+key = "magenta"

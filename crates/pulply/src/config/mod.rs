@@ -27,6 +27,8 @@ pub struct ContextConfig {
     pub refresh: Option<u64>,
     /// Hide actions the user lacks permissions for (default true).
     pub rbac_filter: Option<bool>,
+    /// Skin for this context (overrides the global `skin`).
+    pub skin: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +50,7 @@ struct FileConfig {
     language: Option<String>,
     start_view: String,
     refresh: u64,
+    skin: String,
     upload_chunk_size: String,
     import_pulp_cli: bool,
     default_context: Option<String>,
@@ -60,6 +63,7 @@ impl Default for FileConfig {
             language: None,
             start_view: "dashboard".into(),
             refresh: DEFAULT_REFRESH_SECS,
+            skin: crate::theme::DEFAULT_SKIN.into(),
             upload_chunk_size: "6MiB".into(),
             import_pulp_cli: true,
             default_context: None,
@@ -76,6 +80,9 @@ pub struct Config {
     /// Bytes per upload chunk.
     pub upload_chunk_size: usize,
     pub default_context: Option<String>,
+    pub skin: String,
+    /// Directory of the config file, holding the annex files (`skins/`, `hotkeys.toml`…).
+    pub dir: Option<PathBuf>,
     /// Sorted by name.
     pub contexts: Vec<Context>,
 }
@@ -127,7 +134,9 @@ impl Config {
             }
             _ => BTreeMap::new(),
         };
-        Self::merge(file, imported)
+        let mut config = Self::merge(file, imported)?;
+        config.dir = path.and_then(|p| p.parent().map(Path::to_path_buf));
+        Ok(config)
     }
 
     fn merge(file: FileConfig, imported: BTreeMap<String, ContextConfig>) -> Result<Self> {
@@ -144,6 +153,8 @@ impl Config {
             refresh: file.refresh.max(MIN_REFRESH_SECS),
             upload_chunk_size: parse_size(&file.upload_chunk_size).wrap_err("upload_chunk_size")?,
             default_context: file.default_context,
+            skin: file.skin,
+            dir: None,
             contexts: contexts.into_values().collect(),
         })
     }

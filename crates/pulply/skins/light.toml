@@ -1,0 +1,14 @@
+# pulply built-in light skin, for terminals with a light background.
+
+muted = "#6c6c6c"
+accent = "#005f87"
+border = "#a8a8a8"
+border_focus = "#005f87"
+header_bg = "#d0e4f5"
+header_fg = "#1c1c1c"
+selection_bg = "#c6dbef"
+success = "#2e7d32"
+warning = "#b26a00"
+error = "#c62828"
+info = "#1565c0"
+key = "#8e24aa"

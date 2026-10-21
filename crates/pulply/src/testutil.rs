@@ -45,6 +45,8 @@ pub fn config() -> Config {
         refresh: 5,
         upload_chunk_size: 6 << 20,
         default_context: None,
+        skin: "dark".into(),
+        dir: None,
         contexts: Vec::new(),
     }
 }

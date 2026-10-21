@@ -310,6 +310,14 @@ impl App {
         self.ctx_name = name.clone();
         self.sidebar = Sidebar::build(None, Some(&self.sidebar));
         self.rebuild_completions();
+        let skin = ctx.cfg.skin.as_deref().unwrap_or(&self.config.skin);
+        match Theme::load(skin, self.config.dir.as_deref()) {
+            Ok(theme) => self.theme = theme,
+            Err(e) => {
+                self.theme = Theme::default();
+                self.notify(Level::Error, e);
+            }
+        }
         let url = ctx.cfg.base_url.clone();
         let creds = ctx.cfg.credentials(&self.netrc).map(|mut c| {
             if c.password.is_none() {
