@@ -67,6 +67,13 @@ fn normalize_root(root: &str) -> String {
     if trimmed.is_empty() { "/".into() } else { format!("/{trimmed}/") }
 }
 
+fn api_prefix(api_root: &str, domain: Option<&str>) -> String {
+    match domain {
+        Some(d) => format!("{api_root}{d}/api/v3/"),
+        None => format!("{api_root}api/v3/"),
+    }
+}
+
 impl PulpClient {
     pub fn new(cfg: ClientConfig) -> Result<Self> {
         let mut builder = reqwest::Client::builder()
@@ -88,10 +95,7 @@ impl PulpClient {
         }
         let http = builder.build().map_err(|e| Error::Config(e.to_string()))?;
         let api_root = normalize_root(&cfg.api_root);
-        let api_prefix = match &cfg.domain {
-            Some(d) => format!("{api_root}{d}/api/v3/"),
-            None => format!("{api_root}api/v3/"),
-        };
+        let api_prefix = api_prefix(&api_root, cfg.domain.as_deref());
         Ok(Self {
             inner: Arc::new(Inner {
                 http,
@@ -104,6 +108,25 @@ impl PulpClient {
                 etags: Mutex::new(HashMap::new()),
             }),
         })
+    }
+
+    /// Client scoped as pulp-cli does: the configured domain (`default` when unset) when
+    /// the server has domains enabled, no domain otherwise.
+    pub fn with_domains(&self, enabled: bool) -> Self {
+        let inner = &self.inner;
+        let domain = enabled.then(|| inner.domain.clone().unwrap_or_else(|| "default".into()));
+        Self {
+            inner: Arc::new(Inner {
+                http: inner.http.clone(),
+                origin: inner.origin.clone(),
+                api_root: inner.api_root.clone(),
+                api_prefix: api_prefix(&inner.api_root, domain.as_deref()),
+                domain,
+                auth: inner.auth.clone(),
+                readonly: inner.readonly,
+                etags: Mutex::new(HashMap::new()),
+            }),
+        }
     }
 
     pub fn readonly(&self) -> bool {
@@ -197,8 +220,10 @@ impl PulpClient {
         Ok(self.list(path, &q).await?.count)
     }
 
+    /// `{api_root}api/v3/status/`, not domain-scoped.
     pub async fn status(&self) -> Result<Status> {
-        let body = self.get(&self.api_path("status/"), &[]).await?;
+        let path = format!("{}api/v3/status/", self.inner.api_root);
+        let body = self.get(&path, &[]).await?;
         serde_json::from_value(body).map_err(|e| Error::Decode(format!("status: {e}")))
     }
 

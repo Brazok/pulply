@@ -98,6 +98,53 @@ fn builds_domain_scoped_paths() {
     assert_eq!(c.url("/pulp/acme/api/v3/tasks/"), "https://pulp.example.com/pulp/acme/api/v3/tasks/");
 }
 
+#[test]
+fn applies_domain_only_when_server_enables_domains() {
+    let with = |domain: Option<&str>| {
+        PulpClient::new(ClientConfig {
+            base_url: "https://pulp.example.com/".parse().unwrap(),
+            api_root: "/pulp/".into(),
+            domain: domain.map(Into::into),
+            username: None,
+            password: None,
+            verify_ssl: VerifySsl::Bool(true),
+            timeout: Duration::from_secs(5),
+            readonly: false,
+        })
+        .unwrap()
+    };
+    let disabled = with(Some("default")).with_domains(false);
+    assert_eq!(disabled.api_path("tasks/"), "/pulp/api/v3/tasks/");
+    assert_eq!(disabled.domain(), None);
+    assert_eq!(with(Some("acme")).with_domains(true).api_path("tasks/"), "/pulp/acme/api/v3/tasks/");
+    let fallback = with(None).with_domains(true);
+    assert_eq!(fallback.api_path("tasks/"), "/pulp/default/api/v3/tasks/");
+    assert_eq!(fallback.domain(), Some("default"));
+}
+
+#[tokio::test]
+async fn reads_status_outside_the_domain() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/pulp/api/v3/status/"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"domain_enabled": false})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let c = PulpClient::new(ClientConfig {
+        base_url: server.uri().parse().unwrap(),
+        api_root: "/pulp/".into(),
+        domain: Some("default".into()),
+        username: None,
+        password: None,
+        verify_ssl: VerifySsl::Bool(true),
+        timeout: Duration::from_secs(5),
+        readonly: false,
+    })
+    .unwrap();
+    assert!(!c.status().await.unwrap().domain_enabled);
+}
+
 #[tokio::test]
 async fn uploads_file_in_ranged_chunks() {
     let server = MockServer::start().await;
