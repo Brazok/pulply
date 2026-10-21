@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1 - 2026-10-21
+
+### Changed
+
+- Logs go to a single `pulply.log` rotated to `pulply.log.1` past 10 MB, instead of one file per day;
+  former daily files are removed at startup.
+
+### Fixed
+
+- `status/` is read outside the domain, and the configured `domain` only scopes URLs when the server
+  has domains enabled (`default` when unset), as pulp-cli does; an ignored domain is notified.
+
 ## 0.1.0 - 2026-10-21
 
 First release.

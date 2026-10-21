@@ -59,6 +59,7 @@ flowchart LR
 
 - `reqwest` + `rustls`, `verify_ssl` : `false` → `danger_accept_invalid_certs`, chemin → CA ajoutée.
 - URL : `base_url + api_root + [domain/] + api/v3/…`. Les hrefs renvoyés par Pulp sont absolus (chemin) et utilisés tels quels.
+- Domaine (R1.8, R1.9) : `status/` et `docs/api.json` sont lus sans domaine (pulpcore les sert hors domaine). Après le statut, `PulpClient::with_domains(domain_enabled)` fixe le préfixe : domaine configuré ou `default` si activé, aucun sinon. Même règle que pulp-glue (`x-pulp-domain-enabled`), mais lue dans le statut, disponible avant le schéma. `session::connect` renvoie le domaine ignoré pour la notification ; `default` n'est pas signalé (`pulp config create` l'écrit partout).
 - Basic auth. Ordre de résolution du mot de passe : config → netrc (parseur interne, ~60 lignes, pas de dépendance non maintenue) → `PULPLY_PASSWORD` → prompt.
 - Cache ETag par URL (`LruCache<Url, (ETag, Bytes)>`) quand `caps.etag`.
 - `readonly` est appliqué dans le client : toute méthode mutante renvoie `Error::ReadOnly` avant l'envoi (R13.1), ce qui garantit le comportement même en cas d'oubli côté UI.
@@ -204,7 +205,7 @@ Fichiers annexes, dans le répertoire de `config.toml` (R14) : `hotkeys.toml` (t
 | i18n | `rust-i18n` + `sys-locale` |
 | Chemins | `directories` |
 | Hash | `sha2` |
-| Erreurs / logs | `thiserror` (api), `color-eyre` (bin), `tracing`, `tracing-appender` |
+| Erreurs / logs | `thiserror` (api), `color-eyre` (bin), `tracing`, `tracing-appender` (écriture non bloquante ; rotation par taille maison, R16.1, `tracing-appender` ne rotant que par date) |
 | Tests | `insta` (snapshots `TestBackend`), `wiremock`, `tokio::test` |
 
 ## 6. Stratégie de test

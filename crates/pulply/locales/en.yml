@@ -154,6 +154,7 @@ notice:
   unknown_context: "Unknown context: %{name}"
   unknown_resource: "Unknown resource: %{name}"
   unsupported: "pulpcore %{version} is older than 3.50: some views may not work"
+  domain_ignored: "Domain %{domain} ignored: domains are not enabled on this server"
   readonly: "Read-only mode: modifications are disabled"
   done: "✔ %{label}"
   task_completed: "✔ %{label} completed"

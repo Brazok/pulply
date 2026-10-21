@@ -459,7 +459,10 @@ impl App {
         let url = ctx.cfg.base_url.clone();
         match result {
             Ok(connected) => {
-                let session::Connected { client, status, perms } = *connected;
+                let session::Connected { client, status, perms, ignored_domain } = *connected;
+                if let Some(domain) = ignored_domain {
+                    self.notify(Level::Info, t!("notice.domain_ignored", domain = domain).into_owned());
+                }
                 if !status.supported() {
                     let v = status.core_version().map(|v| v.to_string()).unwrap_or_else(|| "?".into());
                     self.notify(Level::Error, t!("notice.unsupported", version = v).into_owned());

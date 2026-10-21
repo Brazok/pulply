@@ -2245,7 +2245,7 @@ dependencies = [
 
 [[package]]
 name = "pulply"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "clap",
@@ -2272,12 +2272,13 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
+ "wiremock",
  "x509-parser",
 ]
 
 [[package]]
 name = "pulply-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flate2",
  "futures",

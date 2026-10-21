@@ -61,11 +61,12 @@ base_url = "http://localhost:8080"
 username = "admin"
 password = "password"
 api_root = "/pulp/"        # default
-domain = "acme"            # optional, for domain-enabled servers
+domain = "acme"            # optional, ignored unless the server enables domains ("default" then)
 ```
 
 CLI flags: `--context`, `--config`, `--readonly`, `-c/--command`, `--refresh`, `-l/--log-level`.
-Logs go to `$XDG_STATE_HOME/pulply/pulply.<date>.log`.
+Logs go to `$XDG_STATE_HOME/pulply/pulply.log` (`~/.local/state/pulply/` on Linux). Past 10 MB the file
+is moved to `pulply.log.1`, replacing the previous one, so logs never take more than 20 MB.
 
 ### Customization
 
