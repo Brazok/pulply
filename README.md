@@ -62,6 +62,7 @@ username = "admin"
 password = "password"
 api_root = "/pulp/"        # default
 domain = "acme"            # optional, ignored unless the server enables domains ("default" then)
+timeout = 30               # request timeout in seconds (default 30, 0 = none)
 ```
 
 CLI flags: `--context`, `--config`, `--readonly`, `-c/--command`, `--refresh`, `-l/--log-level`.
