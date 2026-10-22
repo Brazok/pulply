@@ -21,7 +21,7 @@ crossterm = { version = "0.29.0", features = ["event-stream"] }
 directories = "6.0.0"
 futures = "0.3.34"
 hex = "0.4.3"
-pulply-api = { version = "0.1.1", path = "../pulply-api" }
+pulply-api = { version = "0.1.2", path = "../pulply-api" }
 ratatui = "0.30.2"
 rust-i18n = "4.2.4"
 serde = { version = "1.0.229", features = ["derive"] }
