@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 - 2026-10-22
+
+### Fixed
+
+- `timeout = 0` disables the request timeout instead of making every request fail at once.
+
 ## 0.1.1 - 2026-10-21
 
 ### Changed

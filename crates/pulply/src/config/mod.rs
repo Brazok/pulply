@@ -12,6 +12,9 @@ use serde::Deserialize;
 
 pub const DEFAULT_REFRESH_SECS: u64 = 5;
 pub const MIN_REFRESH_SECS: u64 = 1;
+pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
+
+const NO_TIMEOUT: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
 #[serde(default)]
@@ -240,9 +243,17 @@ impl ContextConfig {
             username: creds.as_ref().map(|c| c.username.clone()),
             password: creds.and_then(|c| c.password),
             verify_ssl: self.verify_ssl.clone().unwrap_or(VerifySsl::Bool(true)),
-            timeout: Duration::from_secs(self.timeout.unwrap_or(30)),
+            timeout: timeout_duration(self.timeout),
             readonly: readonly || self.readonly,
         })
+    }
+}
+
+fn timeout_duration(secs: Option<u64>) -> Duration {
+    match secs {
+        Some(0) => NO_TIMEOUT,
+        Some(n) => Duration::from_secs(n),
+        None => Duration::from_secs(DEFAULT_TIMEOUT_SECS),
     }
 }
 
@@ -330,5 +341,14 @@ readonly = true
 
         let anonymous = ContextConfig { base_url: "https://other".into(), ..Default::default() };
         assert_eq!(anonymous.credentials(&entries), None);
+    }
+
+    #[test]
+    fn timeout_defaults_and_zero_disables_it() {
+        let cfg = ContextConfig { base_url: "http://lab:9000".into(), ..Default::default() };
+        let timeout = |t| ContextConfig { timeout: t, ..cfg.clone() }.client_config(None, false).unwrap().timeout;
+        assert_eq!(timeout(None), Duration::from_secs(DEFAULT_TIMEOUT_SECS));
+        assert_eq!(timeout(Some(10)), Duration::from_secs(10));
+        assert_eq!(timeout(Some(0)), NO_TIMEOUT, "0 means no timeout, not an instant one");
     }
 }
