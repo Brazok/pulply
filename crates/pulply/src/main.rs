@@ -39,6 +39,7 @@ async fn main() -> Result<()> {
     tracing::info!(context, "starting pulply {}", env!("CARGO_PKG_VERSION"));
 
     let opts = app::Options {
+        config_path: cli.config.clone(),
         context,
         readonly: cli.readonly,
         refresh: cli.refresh,

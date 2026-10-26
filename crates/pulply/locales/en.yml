@@ -135,7 +135,7 @@ help:
   global: Global
   view: This view
   commands: Commands
-  command: command mode (resources, ctx, quit)
+  command: command mode (resources, ctx, config, quit)
   filter: filter (-q expr, -f key=value for the API)
   sidebar_focus: focus sidebar / main
   sidebar_toggle: show / hide sidebar
@@ -247,6 +247,31 @@ ctx:
   status: STATUS
   readonly: read-only
   readwrite: read-write
+
+config:
+  title: Configuration
+  file: FILE
+  description: DESCRIPTION
+  status: STATUS
+  path: PATH
+  present: present
+  defaults: defaults
+  builtin: built-in
+  ignored: not imported
+  desc:
+    main: general settings and contexts
+    hotkeys: "key → : command"
+    aliases: "extra : words"
+    views: columns per resource type
+    plugins: external commands
+    skin: colors
+    pulp_cli: pulp-cli profiles (imported contexts)
+  editor_help: "Save to apply: pulply reloads its configuration. Lines starting with #~ are ignored."
+  saved: "%{file} saved, configuration reloaded"
+  unchanged: "%{file} unchanged"
+  discarded: "%{file} left unchanged, the edit was invalid: %{error}"
+  context_gone: "Context %{name} is no longer configured: still connected until the next switch"
+  unknown_file: "Unknown configuration file: %{name}"
 
 plugin:
   started: "Plugin %{name} started"

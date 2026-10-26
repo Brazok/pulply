@@ -4,6 +4,7 @@
 pub mod actions;
 pub mod admin;
 pub mod columns;
+pub mod config;
 pub mod confirm;
 pub mod connect;
 pub mod contexts;
@@ -173,6 +174,8 @@ pub enum Outcome {
     },
     /// Edit a resource as YAML in `$EDITOR`.
     EditExternal(String),
+    /// Edit a configuration file in `$EDITOR`, then reload the configuration.
+    EditConfig(crate::config::files::ConfigFile),
     /// Run an upload batch (progress overlay, content created from each file).
     Upload(upload::UploadJob),
     Notify(Level, String),

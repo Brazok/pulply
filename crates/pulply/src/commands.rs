@@ -7,6 +7,8 @@ pub enum Target {
     Dashboard,
     Contexts,
     Context(String),
+    /// `:config` list, or the file with this key opened in `$EDITOR` (`hotkeys`, `skin/dark`).
+    Config(Option<String>),
     /// Registry type id (`repositories/rpm/rpm`, `tasks`).
     Resource(String),
     Help,
@@ -76,7 +78,7 @@ const ALIASES: &[(&str, &[&str])] = &[
 ];
 
 const BUILTINS: &[&str] =
-    &["dashboard", "ctx", "help", "me", "quit", "refresh-schema", "purge", "orphans", "reclaim", "repair"];
+    &["dashboard", "ctx", "config", "help", "me", "quit", "refresh-schema", "purge", "orphans", "reclaim", "repair"];
 
 fn canonical(word: &str) -> Option<&'static str> {
     ALIASES.iter().find(|(_, al)| al.contains(&word)).map(|(c, _)| *c)
@@ -95,6 +97,9 @@ pub fn parse(input: &str, reg: Option<&Registry>) -> Result<Target, String> {
         "dash" | "dashboard" | "home" => return Ok(Target::Dashboard),
         "ctx" | "context" | "contexts" => {
             return Ok(if arg.is_empty() { Target::Contexts } else { Target::Context(arg) });
+        }
+        "config" | "cfg" | "conf" | "settings" => {
+            return Ok(Target::Config((!arg.is_empty()).then_some(arg)));
         }
         "q" | "q!" | "quit" | "exit" => return Ok(Target::Quit),
         "help" | "?" => return Ok(Target::Help),
@@ -200,6 +205,8 @@ mod tests {
     fn builtins_work_without_schema() {
         assert_eq!(parse("ctx", None), Ok(Target::Contexts));
         assert_eq!(parse("q", None), Ok(Target::Quit));
+        assert_eq!(parse("config", None), Ok(Target::Config(None)));
+        assert_eq!(parse("cfg skin dark", None), Ok(Target::Config(Some("skin/dark".into()))));
         assert!(parse("repo", None).is_err());
         assert_eq!(parse("orphan", None), Ok(Target::Operation(Op::Orphans)));
         assert_eq!(parse("task-purge", None), Ok(Target::Operation(Op::Purge)));

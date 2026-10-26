@@ -100,6 +100,20 @@ args = ["$DIST_URL"]
 background = true               # else the TUI is suspended until Enter is pressed
 ```
 
+### Editing from the TUI
+
+`:config` lists every configuration file — `config.toml`, `hotkeys.toml`, `aliases.toml`, `views.toml`,
+`plugins.toml`, the skins (built-in `dark` / `light` and yours) and pulp-cli's `cli.toml` — with its state
+(present, defaults, built-in). `Enter` or `e` opens it in `$VISUAL`/`$EDITOR`; a missing file starts from a
+template holding the defaults (the built-in colors for a skin), so `config.toml` is created with the
+default settings ready to change. `:config <file>` opens one directly (`:config main`, `:config hotkeys`,
+`:config skin dark`, `:config pulp-cli`).
+
+On save pulply reloads its whole configuration and applies it at once (language, skin, refresh, hotkeys,
+aliases, columns, plugins); a change to the current context reconnects. An invalid file is not kept: the
+previous content is restored and the editor reopens with the error on top (`#~` lines); quit without
+changing anything to give up.
+
 Skin colors: `muted accent border border_focus header_bg header_fg selection_bg success warning error
 info key` (see [`crates/pulply/skins/dark.toml`](crates/pulply/skins/dark.toml)). Plugin variables:
 `$HREF $NAME $TYPE $PRN $BASE_URL $API_URL $CONTEXT $DIST_URL $USER`, also exported as `PULPLY_<NAME>`.
@@ -117,7 +131,7 @@ Browse:
 
 | Key | Action |
 |---|---|
-| `:` | command mode (`:repo rpm`, `:content container/tags`, `:dist`, `:task`, `:user`, `:group`, `:role`, `:me`, `:ctx`, `:q`); `Tab` completes |
+| `:` | command mode (`:repo rpm`, `:content container/tags`, `:dist`, `:task`, `:user`, `:group`, `:role`, `:me`, `:ctx`, `:config`, `:q`); `Tab` completes |
 | `/` | filter rows; `-q <expr>` and `-f key=value` are sent to the API |
 | `Enter` / `Esc` | drill down (repository → versions → content) / back |
 | `d` | describe (follow hrefs with `Enter`) |

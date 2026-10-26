@@ -17,9 +17,10 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::AbortHandle;
 
 use crate::commands::{self, Target};
+use crate::config::files::ConfigFile;
 use crate::config::{Config, netrc};
 use crate::custom::Plugin;
-use crate::editor::{self, EditOutcome};
+use crate::editor::{self, EditOutcome, FileOutcome};
 use crate::format;
 use crate::names::NameCache;
 use crate::session::{self, Session};
@@ -28,6 +29,7 @@ use crate::theme::Theme;
 use crate::ui;
 use crate::ui::sidebar::{self, Sidebar};
 use crate::views::actions;
+use crate::views::config::ConfigView;
 use crate::views::connect::{ConnectView, State as ConnectState};
 use crate::views::contexts::ContextView;
 use crate::views::dashboard::DashboardView;
@@ -118,6 +120,8 @@ enum Msg {
 }
 
 pub struct Options {
+    /// `--config`, reused when the configuration is reloaded.
+    pub config_path: Option<std::path::PathBuf>,
     pub context: String,
     pub readonly: bool,
     pub refresh: Option<u64>,
@@ -153,6 +157,8 @@ pub struct App {
     pending_command: Option<String>,
     /// Resource to open in `$EDITOR` once the current event is handled.
     pending_edit: Option<String>,
+    /// Configuration file to open in `$EDITOR` once the current event is handled.
+    pending_config: Option<ConfigFile>,
     /// Foreground shell plugin to run once the current event is handled.
     pending_plugin: Option<PluginRun>,
     netrc: Vec<netrc::Entry>,
@@ -206,6 +212,7 @@ impl App {
             track_inflight: false,
             pending_command: None,
             pending_edit: None,
+            pending_config: None,
             pending_plugin: None,
             netrc,
             password: None,
@@ -240,6 +247,11 @@ impl App {
                 // The event reader would steal the editor's keystrokes: stop it meanwhile.
                 drop(events);
                 self.run_editor(terminal, href).await;
+                events = EventStream::new();
+            }
+            if let Some(file) = self.pending_config.take() {
+                drop(events);
+                self.run_config_editor(terminal, file).await;
                 events = EventStream::new();
             }
             if let Some(run) = self.pending_plugin.take() {
@@ -287,6 +299,51 @@ impl App {
         }
     }
 
+    async fn run_config_editor(&mut self, terminal: &mut DefaultTerminal, file: ConfigFile) {
+        let label = file.label();
+        let config_path = self.opts.config_path.clone();
+        let validate = || file.validate(config_path.as_deref(), &self.ctx_name);
+        match editor::edit_file(terminal, &file.path, &file.template(), validate).await {
+            Ok(FileOutcome::Saved(config)) => {
+                self.notify(Level::Success, t!("config.saved", file = label).into_owned());
+                self.apply_config(config);
+            }
+            Ok(FileOutcome::Unchanged) => self.notify(Level::Info, t!("config.unchanged", file = label).into_owned()),
+            Ok(FileOutcome::Discarded(e)) => {
+                self.notify(Level::Error, t!("config.discarded", file = label, error = e).into_owned())
+            }
+            Err(e) => self.notify(Level::Error, e),
+        }
+        self.refresh_visible();
+    }
+
+    /// Switches to a reloaded configuration: language, skin, refresh, completions; reconnects
+    /// when the settings of the current context changed.
+    fn apply_config(&mut self, config: Config) {
+        let before = self.config.context(&self.ctx_name).map(|c| c.cfg.clone());
+        let language_changed = config.language != self.config.language;
+        self.config = config;
+        if language_changed {
+            rust_i18n::set_locale(crate::select_language(self.config.language.as_deref()));
+            let reg = self.session.as_ref().and_then(|s| s.registry.clone());
+            self.sidebar = Sidebar::build(reg.as_deref(), Some(&self.sidebar));
+        }
+        self.rebuild_completions();
+        let Some(ctx) = self.config.context(&self.ctx_name).cloned() else {
+            self.notify(Level::Info, t!("config.context_gone", name = self.ctx_name).into_owned());
+            return;
+        };
+        if before.as_ref() != Some(&ctx.cfg) {
+            self.start_connect(self.ctx_name.clone());
+            return;
+        }
+        self.load_theme(ctx.cfg.skin.as_deref());
+        let refresh = ctx.cfg.refresh(self.opts.refresh.unwrap_or(self.config.refresh));
+        if let Some(s) = &mut self.session {
+            s.refresh = refresh;
+        }
+    }
+
     // ------------------------------------------------------------ sessions
 
     fn refresh_interval(&self) -> Duration {
@@ -323,14 +380,7 @@ impl App {
         self.ctx_name = name.clone();
         self.sidebar = Sidebar::build(None, Some(&self.sidebar));
         self.rebuild_completions();
-        let skin = ctx.cfg.skin.as_deref().unwrap_or(&self.config.skin);
-        match Theme::load(skin, self.config.dir.as_deref()) {
-            Ok(theme) => self.theme = theme,
-            Err(e) => {
-                self.theme = Theme::default();
-                self.notify(Level::Error, e);
-            }
-        }
+        self.load_theme(ctx.cfg.skin.as_deref());
         let url = ctx.cfg.base_url.clone();
         let creds = ctx.cfg.credentials(&self.netrc).map(|mut c| {
             if c.password.is_none() {
@@ -352,6 +402,18 @@ impl App {
         });
     }
 
+    /// The context's skin, else the global one; the default theme if it cannot be loaded.
+    fn load_theme(&mut self, context_skin: Option<&str>) {
+        let skin = context_skin.unwrap_or(&self.config.skin);
+        match Theme::load(skin, self.config.dir.as_deref()) {
+            Ok(theme) => self.theme = theme,
+            Err(e) => {
+                self.theme = Theme::default();
+                self.notify(Level::Error, e);
+            }
+        }
+    }
+
     fn load_registry(&mut self, force: bool) {
         let Some(s) = &self.session else { return };
         let (client, status, generation) = (s.client.clone(), s.status.clone(), self.generation);
@@ -366,6 +428,9 @@ impl App {
         let reg = self.session.as_ref().and_then(|s| s.registry.as_deref());
         self.completions = commands::completions(reg, &names);
         self.completions.extend(self.config.custom.aliases.keys().cloned());
+        self.completions.extend(
+            crate::config::files::list(&self.config).iter().map(|f| format!("config {}", f.key().replace('/', " "))),
+        );
     }
 
     // ------------------------------------------------------------ messages
@@ -865,6 +930,16 @@ impl App {
                 self.push(Box::new(view));
             }
             Target::Context(name) => self.start_connect(name),
+            Target::Config(None) => {
+                let view = ConfigView::new(&ctx!(self));
+                self.push(Box::new(view));
+            }
+            Target::Config(Some(key)) => {
+                match crate::config::files::list(&self.config).into_iter().find(|f| f.key() == key) {
+                    Some(file) => self.pending_config = Some(file),
+                    None => self.notify(Level::Error, t!("config.unknown_file", name = key).into_owned()),
+                }
+            }
             Target::Help => self.help = true,
             Target::Me => {
                 if self.session.is_some() {
@@ -1016,6 +1091,7 @@ impl App {
                 }
             }
             Outcome::EditExternal(href) => self.pending_edit = Some(href),
+            Outcome::EditConfig(file) => self.pending_config = Some(file),
             Outcome::Upload(job) => self.start_upload(job),
             Outcome::Notify(level, text) => self.notify(level, text),
             Outcome::Batch(all) => {

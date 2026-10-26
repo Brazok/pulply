@@ -162,6 +162,8 @@ Chaque vue sur mesure fournit des colonnes, un describe et des actions spécifiq
 - **R14.4 Colonnes** : sélection et ordre des colonnes par type de ressource (`views.toml`), y compris des chemins JSON arbitraires.
 - **R14.5 Plugins shell** : `plugins.toml` définit touche, portée (types de ressources), commande et arguments, avec variables `$HREF`, `$NAME`, `$BASE_URL`, `$CONTEXT`, `$DIST_URL`, … ; option `background` ; suspension propre de la TUI pendant l'exécution.
 
+- **R14.6 Édition depuis la TUI** : `:config` DOIT lister les fichiers de configuration (`config.toml`, fichiers annexes, skins intégrés et utilisateur, `cli.toml` de pulp-cli) avec leur état, et les ouvrir dans `$VISUAL`/`$EDITOR` ; un fichier absent DOIT partir d'un modèle contenant les valeurs par défaut. QUAND le fichier est enregistré ALORS pulply DOIT recharger la configuration et l'appliquer sans redémarrer (reconnexion si le contexte courant a changé) ; QUAND il est invalide ALORS l'ancien contenu DOIT être restauré et l'éditeur rouvert avec l'erreur.
+
 ### R15 — i18n
 
 - **R15.1** Toutes les chaînes UI DOIVENT passer par le système de traduction ; FR et EN complets.

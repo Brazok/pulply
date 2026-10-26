@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `:config` lists the configuration files (`config.toml`, hotkeys, aliases, views, plugins, skins,
+  pulp-cli's `cli.toml`) and edits them in `$EDITOR`; a missing file starts from the defaults. The
+  configuration is reloaded on save, and an invalid edit is rolled back and reopened with the error.
+
 ## 0.1.2 - 2026-10-22
 
 ### Fixed

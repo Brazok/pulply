@@ -53,6 +53,7 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 - [x] Skins (`dark`, `light`, par contexte) — R14.1. Skins embarqués dans `crates/pulply/skins/`, `inherit` pour n'en surcharger qu'une partie.
 - [x] Hotkeys, alias, colonnes configurables — R14.2–R14.4
 - [x] Plugins shell — R14.5. Variables aussi exportées en `PULPLY_<NOM>` ; au premier plan, retour à la TUI après Entrée.
+- [x] `:config` : édition des fichiers de configuration dans `$EDITOR`, modèles par défaut, rechargement à chaud, retour arrière si invalide — R14.6
 - [x] Traduction FR complète — R15.1
 - [x] Release : cargo-dist, `.deb`, `.rpm`, Homebrew, image OCI, crates.io — R16.3. Vérifié localement (`dist plan`, paquets deb/rpm, `cargo package --workspace`, image distroless de 6,5 Mo testée contre le conteneur) ; le workflow GitHub n'a pas encore tourné.
 - [x] README (installation, config, raccourcis), captures
