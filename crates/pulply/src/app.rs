@@ -569,7 +569,12 @@ impl App {
         let (client, generation) = (s.client.clone(), self.generation);
         tracing::info!(method = %mutation.method, path = mutation.path, "mutation");
         self.spawn(async move {
-            let result = client.mutate(mutation.method.clone(), &mutation.path, mutation.body.as_ref()).await;
+            let (method, path, body) = (mutation.method.clone(), &mutation.path, mutation.body.as_ref());
+            let result = if mutation.multipart {
+                client.mutate_multipart(method, path, body, &mutation.files).await
+            } else {
+                client.mutate(method, path, body).await
+            };
             Msg::Mutated { generation, mutation, result }
         });
     }
@@ -958,9 +963,9 @@ impl App {
                     return;
                 };
                 let selection = self.stack.last().map(|slot| slot.view.selection()).unwrap_or_default();
-                match actions::operation(op, &reg, &s.client, selection) {
+                match actions::operation(&op, &reg, &s.client, selection) {
                     Some(form) => self.push(Box::new(form)),
-                    None => self.notify(Level::Error, t!("notice.unknown_resource", name = op.rel_path()).into_owned()),
+                    None => self.notify(Level::Error, t!("notice.unknown_resource", name = op).into_owned()),
                 }
             }
             Target::RefreshSchema => {

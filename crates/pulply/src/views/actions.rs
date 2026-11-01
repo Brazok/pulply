@@ -61,33 +61,46 @@ pub fn cancel_tasks(hrefs: Vec<String>, ctx: &Ctx) -> Outcome {
     confirm(t!("confirm.cancel", what = describe(&hrefs, ctx)), Outcome::Batch(mutations))
 }
 
-/// Confirmed form for a global operation. `selection` (hrefs of the current view)
-/// pre-fills the repositories to reclaim.
-pub fn operation(op: Op, reg: &Registry, client: &PulpClient, selection: Vec<String>) -> Option<FormView> {
-    let operation = reg.operation(op.rel_path())?;
+/// Confirmed form for the global operation at `rel` (`repair/`, `rpm/copy/`).
+/// `selection` (hrefs of the current view) pre-fills the repositories to reclaim or prune.
+pub fn operation(rel: &str, reg: &Registry, client: &PulpClient, selection: Vec<String>) -> Option<FormView> {
+    let operation = reg.operation(rel)?;
     let schema = operation.body_schema.as_deref().and_then(|s| reg.schema(s));
-    let key = op.key();
-    let mut form = FormView::action(
-        tr(&format!("op.{key}.title")),
-        tr(&format!("op.{key}.label")),
-        operation.path.clone(),
-        schema,
-        reg,
-        "core",
-    )
-    .with_confirm(tr(&format!("op.{key}.confirm")));
-    match op {
-        Op::Orphans => {
+    let (title, label, confirm) = match Op::from_rel(rel) {
+        Some(op) => {
+            let key = op.key();
+            (tr(&format!("op.{key}.title")), tr(&format!("op.{key}.label")), tr(&format!("op.{key}.confirm")))
+        }
+        None => {
+            let name = rel.trim_end_matches('/').to_owned();
+            let title = operation.summary.clone().map_or_else(|| name.clone(), |s| format!("{s} · {name}"));
+            let confirm = t!("confirm.operation", what = name).into_owned();
+            (title, name, confirm)
+        }
+    };
+    // Plugin of `rpm/copy/`, `remotes/python/…` for relation pickers.
+    let plugin = match rel.split('/').collect::<Vec<_>>().as_slice() {
+        [cat, plugin, ..] if reg.types().iter().any(|t| t.category == *cat && t.plugin == *plugin) => *plugin,
+        [plugin, ..] if reg.plugins().contains(plugin) => *plugin,
+        _ => "core",
+    };
+    let mut form = FormView::action(title.clone(), label, operation.path.clone(), schema, reg, plugin)
+        .with_confirm(confirm)
+        .with_multipart(operation.multipart)
+        .with_result(title);
+    let repos: Vec<String> = selection.into_iter().filter(|h| h.contains("/repositories/")).collect();
+    match Op::from_rel(rel) {
+        Some(Op::Orphans) => {
             let query = vec![("orphaned_for".to_owned(), "0".to_owned())];
             form = form.with_count(client.api_path("content/"), query, "op.orphans.count");
         }
-        Op::Reclaim => {
-            let repos: Vec<String> = selection.into_iter().filter(|h| h.contains("/repositories/")).collect();
-            if !repos.is_empty() {
-                form = form.with_values(&[("repo_hrefs", repos.join(", "))]);
+        Some(Op::Purge | Op::Repair) => {}
+        // `repositories/reclaim_space/`, `rpm/prune/`, `rpm/comps/`…
+        Some(Op::Reclaim) | None => {
+            if let Some(first) = repos.first() {
+                form = form.with_values(&[("repo_hrefs", repos.join(", ")), ("repository", first.clone())]);
             }
         }
-        Op::Purge | Op::Repair => {}
     }
     Some(form)
 }
@@ -173,6 +186,7 @@ pub fn sync(repo: &Value, ctx: &Ctx) -> Outcome {
         reg,
         &t.plugin,
     )
+    .with_multipart(action.multipart)
     .with_values(&[("remote", repo.str_field("remote").unwrap_or_default().to_owned())]);
     Outcome::Push(Box::new(form))
 }
@@ -291,4 +305,19 @@ pub fn add_content(repo: &str, base_version: Option<&str>, units: Vec<String>, c
 /// Repository type receiving content of `content_type`'s plugin.
 pub fn repository_type_for<'a>(content_type: &ResourceType, reg: &'a Registry) -> Option<&'a ResourceType> {
     plugin_type(reg, "repositories", &content_type.plugin).filter(|t| t.has_action("modify"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testutil;
+
+    #[test]
+    fn operation_forms_cover_every_global_operation() {
+        let (reg, session) = (testutil::registry(), testutil::session(false));
+        for rel in reg.operation_paths() {
+            assert!(operation(rel, &reg, &session.client, Vec::new()).is_some(), "{rel}");
+        }
+        assert!(operation("nope/", &reg, &session.client, Vec::new()).is_none());
+    }
 }

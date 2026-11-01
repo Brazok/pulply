@@ -7,6 +7,16 @@
 - `:config` lists the configuration files (`config.toml`, hotkeys, aliases, views, plugins, skins,
   pulp-cli's `cli.toml`) and edits them in `$EDITOR`; a missing file starts from the defaults. The
   configuration is reloaded on save, and an invalid edit is rolled back and reopened with the error.
+- `:op <path>` runs any global operation of the server not covered by a dedicated command
+  (`rpm/copy`, `deb/copy`, `ansible/copy`, `rpm/prune`, `rpm/comps`, `domains/migrate`,
+  `importers/core/pulp/import-check`, `remotes/python/python/from_bandersnatch`, the synchronous
+  `content/*/upload/`…), with a form built from its schema; a synchronous response is displayed.
+- Forms accept files: binary fields (`file`, `config`) take a local path and the request is sent as
+  `multipart/form-data`, as are endpoints declaring no JSON body (content and artifact creation,
+  `build_image`).
+- The action menu (`m`) also lists read-only GET actions returning JSON (Maven `metrics`,
+  `packages`, `path_index_status`, task `profile_artifacts`), available in read-only mode too.
+- `docs/api-coverage.md`: implementation status of every `/api/v3` route.
 
 ## 0.1.2 - 2026-10-22
 

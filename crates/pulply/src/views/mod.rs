@@ -15,6 +15,7 @@ pub mod form;
 pub mod lines;
 pub mod list;
 pub mod plugins;
+pub mod raw;
 pub mod summary;
 pub mod task;
 pub mod upload;
@@ -129,11 +130,31 @@ pub struct Mutation {
     /// View whose [`View::on_mutated`] receives the result (the form that submitted it).
     /// Explicit because the mutation may be applied from another layer (confirmation overlay).
     pub reply_to: Option<u64>,
+    /// Send `body` as `multipart/form-data` (endpoints refusing JSON, file fields).
+    pub multipart: bool,
+    /// Local files attached as form parts: (field, path).
+    pub files: Vec<(String, std::path::PathBuf)>,
 }
 
 impl Mutation {
     pub fn new(method: Method, path: impl Into<String>, body: Option<Value>, label: impl Into<String>) -> Self {
-        Self { method, path: path.into(), body, label: label.into(), after: AfterTask::None, reply_to: None }
+        Self {
+            method,
+            path: path.into(),
+            body,
+            label: label.into(),
+            after: AfterTask::None,
+            reply_to: None,
+            multipart: false,
+            files: Vec::new(),
+        }
+    }
+
+    /// Sends the body as a multipart form, with `files` attached.
+    pub fn multipart(mut self, files: Vec<(String, std::path::PathBuf)>) -> Self {
+        self.multipart = true;
+        self.files = files;
+        self
     }
 
     pub fn after(mut self, after: AfterTask) -> Self {

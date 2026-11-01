@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use pulply_api::{ClientConfig, Error, Method, PulpClient, VerifySsl};
 use serde_json::json;
-use wiremock::matchers::{basic_auth, header, method, path};
+use wiremock::matchers::{basic_auth, body_string_contains, header, header_regex, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn client(server: &MockServer, readonly: bool) -> PulpClient {
@@ -186,4 +186,29 @@ async fn readonly_refuses_uploads_and_form_posts() {
     assert!(matches!(c.upload_file(&file, 4, |_, _| {}).await, Err(Error::ReadOnly { .. })));
     let form = [("upload".to_owned(), "/u/".to_owned())];
     assert!(matches!(c.post_form("/pulp/api/v3/content/file/files/", &form).await, Err(Error::ReadOnly { .. })));
+    let multipart = c.mutate_multipart(Method::POST, "/pulp/api/v3/rpm/comps/", None, &[]).await;
+    assert!(matches!(multipart, Err(Error::ReadOnly { .. })));
+}
+
+#[tokio::test]
+async fn multipart_mutation_sends_fields_and_files() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/pulp/api/v3/rpm/comps/"))
+        .and(header_regex("content-type", "^multipart/form-data"))
+        .and(body_string_contains("name=\"repository\"\r\n\r\n/pulp/api/v3/repositories/rpm/rpm/1/"))
+        .and(body_string_contains("filename=\"comps.xml\""))
+        .and(body_string_contains("<comps/>"))
+        .respond_with(ResponseTemplate::new(202).set_body_json(json!({"task": "/pulp/api/v3/tasks/1/"})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("comps.xml");
+    std::fs::write(&file, b"<comps/>").unwrap();
+    let body = json!({"repository": "/pulp/api/v3/repositories/rpm/rpm/1/"});
+    let files = [("file".to_owned(), file)];
+    let out =
+        client(&server, false).mutate_multipart(Method::POST, "/pulp/api/v3/rpm/comps/", Some(&body), &files).await;
+    assert_eq!(out.unwrap()["task"], "/pulp/api/v3/tasks/1/");
 }

@@ -67,6 +67,8 @@ struct Operation {
     #[serde(rename = "operationId")]
     operation_id: String,
     #[serde(default)]
+    summary: Option<String>,
+    #[serde(default)]
     parameters: Vec<RawParam>,
     #[serde(rename = "requestBody")]
     request_body: Option<Body>,
@@ -92,6 +94,12 @@ struct Body {
 }
 
 impl Body {
+    /// The request body can only be sent as a form (`multipart/form-data`): file fields,
+    /// or endpoints that refuse JSON (content creation, `rpm/comps/`…).
+    fn form_only(&self) -> bool {
+        !self.content.is_empty() && !self.content.contains_key("application/json")
+    }
+
     fn schema_ref(&self) -> Option<&str> {
         let media = self.content.get("application/json").or_else(|| self.content.values().next())?;
         media.schema.as_ref()?.reference.as_deref().map(strip_ref)
@@ -168,6 +176,10 @@ impl Property {
 pub struct GlobalOperation {
     pub path: String,
     pub body_schema: Option<String>,
+    /// OpenAPI summary (`Copy content`, `Upload comps.xml`).
+    pub summary: Option<String>,
+    /// Body must be sent as `multipart/form-data`.
+    pub multipart: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,6 +207,10 @@ pub struct Action {
     pub verb: String,
     pub method: Method,
     pub body_schema: Option<String>,
+    /// JSON response schema (`MavenRepositoryMetricsResponse`); `None` for redirects.
+    pub response_schema: Option<String>,
+    /// Body must be sent as `multipart/form-data`.
+    pub multipart: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -235,6 +251,8 @@ pub struct ResourceType {
     pub list_params: Vec<Param>,
     pub read_schema: Option<String>,
     pub create_schema: Option<String>,
+    /// The create endpoint only accepts `multipart/form-data` (content, artifacts).
+    pub create_multipart: bool,
     pub update_schema: Option<String>,
 }
 
@@ -359,9 +377,18 @@ impl Registry {
                         types[idx].ops.create = true;
                         types[idx].create_schema =
                             op.request_body.as_ref().and_then(|b| b.schema_ref()).map(str::to_owned);
+                        types[idx].create_multipart = op.request_body.as_ref().is_some_and(Body::form_only);
                     } else if method == Method::Post && item.get.is_none() {
                         let body_schema = op.request_body.as_ref().and_then(|b| b.schema_ref()).map(str::to_owned);
-                        operations.insert(rel.to_owned(), GlobalOperation { path: path.clone(), body_schema });
+                        operations.insert(
+                            rel.to_owned(),
+                            GlobalOperation {
+                                path: path.clone(),
+                                body_schema,
+                                summary: op.summary.clone(),
+                                multipart: op.request_body.as_ref().is_some_and(Body::form_only),
+                            },
+                        );
                     }
                     continue;
                 }
@@ -390,6 +417,11 @@ impl Registry {
                         verb: rest.trim_end_matches('/').to_owned(),
                         method,
                         body_schema: op.request_body.as_ref().and_then(|b| b.schema_ref()).map(str::to_owned),
+                        response_schema: ["200", "201", "202"]
+                            .iter()
+                            .find_map(|c| op.responses.get(*c).and_then(Body::schema_ref))
+                            .map(str::to_owned),
+                        multipart: op.request_body.as_ref().is_some_and(Body::form_only),
                     });
                 }
             }
@@ -437,6 +469,13 @@ impl Registry {
     /// Global operation by path relative to the API prefix (`repair/`).
     pub fn operation(&self, rel: &str) -> Option<&GlobalOperation> {
         self.operations.get(rel)
+    }
+
+    /// Relative paths of every global operation, sorted.
+    pub fn operation_paths(&self) -> Vec<&str> {
+        let mut out: Vec<&str> = self.operations.keys().map(String::as_str).collect();
+        out.sort_unstable();
+        out
     }
 
     /// Allowed values of an enum property (inline, `$ref`/`allOf`/`oneOf` to an enum
@@ -571,6 +610,7 @@ fn new_type(
         list_params,
         read_schema: None,
         create_schema: None,
+        create_multipart: false,
         update_schema: None,
     }
 }
@@ -635,6 +675,31 @@ mod tests {
             assert!(reg.operation(op).is_some(), "{op}");
         }
         assert!(reg.operation("tasks/").is_none(), "list endpoints are not operations");
+
+        let comps = reg.operation("rpm/comps/").unwrap();
+        assert!(comps.multipart && comps.summary.as_deref() == Some("Upload comps.xml"));
+        assert!(!reg.operation("rpm/copy/").unwrap().multipart);
+        assert!(reg.operation_paths().contains(&"remotes/python/python/from_bandersnatch/"));
+    }
+
+    #[test]
+    fn records_form_only_bodies_and_action_responses() {
+        let reg = fixture();
+        assert!(reg.get("content/rpm/packages").unwrap().create_multipart);
+        assert!(reg.get("artifacts").unwrap().create_multipart);
+        assert!(!reg.get("repositories/rpm/rpm").unwrap().create_multipart);
+
+        let maven = reg.get("repositories/maven/maven").unwrap();
+        let metrics = maven.actions.iter().find(|a| a.verb == "metrics").unwrap();
+        assert_eq!(
+            (metrics.method, metrics.response_schema.as_deref()),
+            (Method::Get, Some("MavenRepositoryMetricsResponse"))
+        );
+        let avatar =
+            reg.get("content/ansible/namespaces").unwrap().actions.iter().find(|a| a.verb == "avatar").unwrap();
+        assert!(avatar.response_schema.is_none(), "redirect, no JSON body");
+        let build = reg.get("repositories/container/container").unwrap();
+        assert!(build.actions.iter().any(|a| a.verb == "build_image" && a.multipart));
     }
 
     #[test]

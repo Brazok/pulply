@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent};
 use futures::FutureExt;
-use pulply_api::registry::Method as OpMethod;
+use pulply_api::registry::{Action, Method as OpMethod};
 use pulply_api::{Error, Method, ResourceExt};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -18,18 +18,22 @@ use serde_json::{Value, json};
 use super::confirm::{centered, confirm};
 use super::form::FormView;
 use super::lines::{LineItem, LineList, json_lines};
+use super::raw::RawView;
 use super::{Ctx, Fetch, FetchKind, Hint, Mutation, Outcome, Payload, View, actions, error_text};
 use crate::format;
 use crate::perms::Access;
 
-/// POST actions offered by the menu; those with a dedicated key stay available here too.
+/// Actions offered by the menu: POST actions (those with a dedicated key stay available
+/// here too) and GET actions returning JSON (`metrics/`, `profile_artifacts/`…).
 pub struct ActionMenuView {
     href: String,
     name: String,
-    /// (verb, request body schema)
-    items: Vec<(String, Option<String>)>,
+    items: Vec<Action>,
     state: ListState,
 }
+
+/// GET actions with their own view (role assignments, permissions).
+const DEDICATED_GETS: &[&str] = &["list_roles", "my_permissions"];
 
 /// The user may run the POST action `verb` on `href`: its own permission when Pulp has
 /// one (`sync`, `modify`, `repair`, `replicate`…; `manage_roles` for role changes), else
@@ -43,24 +47,33 @@ fn action_allowed(verb: &str, href: &str, ctx: &Ctx) -> bool {
     actions::can_on(own, href, ctx) || (own != "manage_roles" && actions::can_on("change", href, ctx))
 }
 
-/// The resource at `href` has POST actions the user may run.
+/// Menu entries for `href`: POST actions the user may run (none in read-only mode),
+/// then read-only GET actions.
+fn menu_items(href: &str, ctx: &Ctx) -> Vec<Action> {
+    let Some(t) = ctx.registry().and_then(|r| r.type_for_href(href)) else { return Vec::new() };
+    let mut items: Vec<Action> = t
+        .actions
+        .iter()
+        .filter(|a| match a.method {
+            OpMethod::Post => !ctx.readonly() && action_allowed(&a.verb, href, ctx),
+            OpMethod::Get => a.response_schema.is_some() && !DEDICATED_GETS.contains(&a.verb.as_str()),
+            _ => false,
+        })
+        .cloned()
+        .collect();
+    items.sort_by(|a, b| (a.method != OpMethod::Post, &a.verb).cmp(&(b.method != OpMethod::Post, &b.verb)));
+    items
+}
+
+/// The resource at `href` has actions the user may run or read.
 pub fn has_actions(href: &str, ctx: &Ctx) -> bool {
-    ctx.registry()
-        .and_then(|r| r.type_for_href(href))
-        .is_some_and(|t| t.actions.iter().any(|a| a.method == OpMethod::Post && action_allowed(&a.verb, href, ctx)))
+    !menu_items(href, ctx).is_empty()
 }
 
 impl ActionMenuView {
-    /// Menu of the POST actions of the resource at `href` the user may run, if any.
+    /// Menu of the actions of the resource at `href`, if any.
     pub fn for_resource(href: &str, name: String, ctx: &Ctx) -> Option<Self> {
-        let t = ctx.registry()?.type_for_href(href)?;
-        let mut items: Vec<(String, Option<String>)> = t
-            .actions
-            .iter()
-            .filter(|a| a.method == OpMethod::Post && action_allowed(&a.verb, href, ctx))
-            .map(|a| (a.verb.clone(), a.body_schema.clone()))
-            .collect();
-        items.sort();
+        let items = menu_items(href, ctx);
         (!items.is_empty()).then(|| Self {
             href: href.to_owned(),
             name,
@@ -70,27 +83,42 @@ impl ActionMenuView {
     }
 
     fn run(&self, ctx: &Ctx) -> Outcome {
+        let (Some(action), Some(reg)) = (self.state.selected().and_then(|i| self.items.get(i)), ctx.registry()) else {
+            return Outcome::None;
+        };
+        let verb = &action.verb;
+        let path = format!("{}{verb}/", self.href);
+        let title = t!("admin.action_title", verb = verb, name = self.name).into_owned();
+        if action.method == OpMethod::Get {
+            return Outcome::Batch(vec![
+                Outcome::CloseOverlay,
+                Outcome::Push(Box::new(RawView::fetching(title, path))),
+            ]);
+        }
         if ctx.readonly() {
             return Outcome::readonly();
         }
-        let (Some((verb, schema)), Some(reg)) = (self.state.selected().and_then(|i| self.items.get(i)), ctx.registry())
-        else {
-            return Outcome::None;
-        };
-        let path = format!("{}{verb}/", self.href);
         let label = t!("action.run", verb = verb, name = self.name).into_owned();
-        let schema =
-            schema.as_deref().and_then(|s| reg.schema(s)).filter(|s| s.properties.values().any(|p| !p.read_only));
+        let schema = action
+            .body_schema
+            .as_deref()
+            .and_then(|s| reg.schema(s))
+            .filter(|s| s.properties.values().any(|p| !p.read_only));
         let next = match schema {
             Some(schema) => {
                 let plugin = reg.type_for_href(&self.href).map(|t| t.plugin.clone()).unwrap_or_default();
-                let title = t!("admin.action_title", verb = verb, name = self.name).into_owned();
-                Outcome::Push(Box::new(FormView::action(title, label, path, Some(schema), reg, &plugin)))
+                let form = FormView::action(title.clone(), label, path, Some(schema), reg, &plugin)
+                    .with_multipart(action.multipart)
+                    .with_result(title);
+                Outcome::Push(Box::new(form))
             }
-            None => confirm(
-                t!("confirm.action", verb = verb, name = self.name),
-                Outcome::Mutate(Mutation::new(Method::POST, path, Some(json!({})), label)),
-            ),
+            None => {
+                let mut mutation = Mutation::new(Method::POST, path, Some(json!({})), label);
+                if action.multipart {
+                    mutation = mutation.multipart(Vec::new());
+                }
+                confirm(t!("confirm.action", verb = verb, name = self.name), Outcome::Mutate(mutation))
+            }
         };
         Outcome::Batch(vec![Outcome::CloseOverlay, next])
     }
@@ -120,9 +148,13 @@ impl View for ActionMenuView {
         let items: Vec<ListItem> = self
             .items
             .iter()
-            .map(|(verb, schema)| {
-                let form = if schema.is_some() { "  …" } else { "" };
-                ListItem::new(Line::from(vec![Span::raw(verb.clone()), Span::styled(form, ctx.theme.muted())]))
+            .map(|a| {
+                let suffix = match a.method {
+                    OpMethod::Get => format!("  ({})", t!("admin.view")),
+                    _ if a.body_schema.is_some() => "  …".to_owned(),
+                    _ => String::new(),
+                };
+                ListItem::new(Line::from(vec![Span::raw(a.verb.clone()), Span::styled(suffix, ctx.theme.muted())]))
             })
             .collect();
         f.render_stateful_widget(List::new(items).highlight_style(ctx.theme.selected()), area, &mut self.state);
@@ -397,4 +429,40 @@ impl View for MeView {
 /// Display name for menus: resource name or rendered href.
 pub fn display_name(row: Option<&Value>, href: &str, ctx: &Ctx) -> String {
     row.and_then(crate::names::NameCache::label).map(str::to_owned).unwrap_or_else(|| format::href(href, ctx.names))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::names::NameCache;
+    use crate::testutil;
+    use crate::theme::Theme;
+
+    fn verbs(href: &str, readonly: bool) -> Vec<String> {
+        let (names, theme, config) = (NameCache::default(), Theme::default(), testutil::config());
+        let session = testutil::session(readonly);
+        let ctx = Ctx {
+            session: Some(&session),
+            names: &names,
+            theme: &theme,
+            config: &config,
+            current_ctx: "test",
+            now: chrono::Utc::now(),
+        };
+        menu_items(href, &ctx).into_iter().map(|a| a.verb).collect()
+    }
+
+    #[test]
+    fn menu_offers_json_get_actions_even_read_only() {
+        let maven = "/pulp/api/v3/repositories/maven/maven/0192/";
+        let all = verbs(maven, false);
+        for v in ["metrics", "packages", "path_index_status", "set_label"] {
+            assert!(all.iter().any(|a| a == v), "{v} missing from {all:?}");
+        }
+        assert!(!all.iter().any(|a| a == "list_roles" || a == "my_permissions"), "dedicated views");
+        assert_eq!(verbs(maven, true), ["metrics", "packages", "path_index_status"]);
+        assert!(verbs("/pulp/api/v3/tasks/0192/", true).contains(&"profile_artifacts".to_owned()));
+        let namespace = "/pulp/api/v3/content/ansible/namespaces/0192/";
+        assert!(!verbs(namespace, true).contains(&"avatar".to_owned()), "redirect without JSON");
+    }
 }

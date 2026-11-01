@@ -135,7 +135,7 @@ help:
   global: Global
   view: Cette vue
   commands: Commandes
-  command: mode commande (ressources, ctx, config, quit)
+  command: mode commande (ressources, op, ctx, config, quit)
   filter: filtre (-q expr, -f clé=valeur pour l'API)
   sidebar_focus: focus sidebar / vue
   sidebar_toggle: afficher / masquer la sidebar
@@ -170,6 +170,7 @@ confirm:
   rollback: "Créer une nouvelle version de %{repo} avec le contenu de %{version} ?"
   remove_content: "Retirer %{what} de %{repo} ?"
   action: "Exécuter %{verb} sur %{name} ?"
+  operation: "Exécuter %{what} ?"
 
 action:
   delete: "suppression de %{name}"
@@ -200,6 +201,8 @@ form:
   submit: Valider
   submitting: Envoi…
   submit_help: "Entrée ou Ctrl-S pour valider"
+  file_help: chemin d'un fichier local (~/ accepté)
+  no_file: fichier introuvable
 
 op:
   purge:
@@ -360,6 +363,7 @@ admin:
   access_limited: "%{count} permissions globales + rôles d'objet"
   access_objects: rôles d'objet uniquement (permissions globales illisibles)
   no_details: Aucun détail lisible
+  view: affichage
 
 summary:
   title: Contenu

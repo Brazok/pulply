@@ -86,13 +86,13 @@ impl View for DetailView {
         if xray::supports(&self.href) {
             h.push(Hint::new("X", t!("hint.xray")));
         }
+        if admin::has_actions(&self.href, ctx) {
+            h.push(Hint::new("m", t!("hint.actions")));
+        }
         if !ctx.readonly() {
             if self.can_edit(ctx) {
                 h.push(Hint::new("u", t!("hint.edit")));
                 h.push(Hint::new("e", t!("hint.yaml")));
-            }
-            if admin::has_actions(&self.href, ctx) {
-                h.push(Hint::new("m", t!("hint.actions")));
             }
             if admin::can_manage_roles(&self.href, ctx) {
                 h.push(Hint::new("o", t!("hint.roles")));

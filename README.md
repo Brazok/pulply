@@ -158,7 +158,8 @@ Manage (hidden and refused with `--readonly` or `readonly = true`):
 | `U` | upload local files (on a repository row or in a content list); content is created and added to the repository |
 | `Ctrl-K` | cancel task |
 | `:purge` `:orphans` `:reclaim` `:repair` | global operations, after confirmation |
-| `m` | menu of every action of the resource (`reset` access policy, `replicate` upstream Pulp, `exports`, `imports`, `set_label`…) |
+| `:op <path>` | any other global operation of the server, e.g. `:op rpm/copy`, `:op rpm/comps`, `:op rpm/prune`, `:op importers/core/pulp/import-check` (completed with Tab) |
+| `m` | menu of every action of the resource (`reset` access policy, `replicate` upstream Pulp, `exports`, `imports`, `set_label`…) and of its read-only reports (`metrics`, `path_index_status`, task `profile_artifacts`…) |
 | `o` | role assignments on the resource (`a` add / `r` remove users and groups) |
 | `c` in group users / user roles | add a member / assign a role (`Ctrl-D` removes it) |
 
