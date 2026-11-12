@@ -212,3 +212,22 @@ async fn multipart_mutation_sends_fields_and_files() {
         client(&server, false).mutate_multipart(Method::POST, "/pulp/api/v3/rpm/comps/", Some(&body), &files).await;
     assert_eq!(out.unwrap()["task"], "/pulp/api/v3/tasks/1/");
 }
+
+#[tokio::test]
+async fn raw_requests_keep_the_origin_and_honor_readonly() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/pulp/api/v3/tasks/"))
+        .and(basic_auth("admin", "password"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"count": 0})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let ro = client(&server, true);
+    let resp = ro.raw(Method::GET, "/pulp/api/v3/tasks/").unwrap().send().await.unwrap();
+    assert_eq!(resp.status(), 200);
+    assert!(matches!(ro.raw(Method::POST, "/pulp/api/v3/repair/"), Err(Error::ReadOnly { .. })));
+    for bad in ["http://evil/", "//evil/x", "relative/"] {
+        assert!(matches!(ro.raw(Method::GET, bad), Err(Error::Config(_))), "{bad}");
+    }
+}

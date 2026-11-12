@@ -220,9 +220,14 @@ impl PulpClient {
         Ok(self.list(path, &q).await?.count)
     }
 
+    /// `{api_root}api/v3/status/`: the status endpoint is never domain-scoped.
+    pub fn status_path(&self) -> String {
+        format!("{}api/v3/status/", self.inner.api_root)
+    }
+
     /// `{api_root}api/v3/status/`, not domain-scoped.
     pub async fn status(&self) -> Result<Status> {
-        let path = format!("{}api/v3/status/", self.inner.api_root);
+        let path = self.status_path();
         let body = self.get(&path, &[]).await?;
         serde_json::from_value(body).map_err(|e| Error::Decode(format!("status: {e}")))
     }
@@ -237,6 +242,19 @@ impl PulpClient {
             return Err(Error::from_response(status.as_u16(), &path, &String::from_utf8_lossy(&bytes)));
         }
         Ok(bytes.to_vec())
+    }
+
+    /// Raw request on an absolute server path (`/pulp/api/v3/tasks/?limit=5`), with the
+    /// client's credentials, for proxies relaying requests as-is. Modifying methods are
+    /// refused in read-only mode; paths must be absolute so the origin cannot change.
+    pub fn raw(&self, method: Method, path: &str) -> Result<reqwest::RequestBuilder> {
+        if !path.starts_with('/') || path.starts_with("//") {
+            return Err(Error::Config(format!("invalid path {path}")));
+        }
+        if self.inner.readonly && !matches!(method, Method::GET | Method::HEAD | Method::OPTIONS) {
+            return Err(Error::ReadOnly { method: method_label(&method), path: path.to_owned() });
+        }
+        Ok(self.request(method, &self.url(path)))
     }
 
     /// POST/PUT/PATCH/DELETE. Refused locally in read-only mode, before anything is sent.
@@ -265,5 +283,15 @@ impl PulpClient {
             return Ok(Value::Null);
         }
         serde_json::from_str(&text).map_err(|e| Error::Decode(format!("{path}: {e}")))
+    }
+}
+
+fn method_label(method: &Method) -> &'static str {
+    match *method {
+        Method::POST => "POST",
+        Method::PUT => "PUT",
+        Method::PATCH => "PATCH",
+        Method::DELETE => "DELETE",
+        _ => "request",
     }
 }

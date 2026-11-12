@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 
@@ -117,41 +117,49 @@ fn strip_ref(r: &str) -> &str {
 
 // ---------------------------------------------------------------- public model
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Schema {
-    #[serde(rename = "type")]
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub ty: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub properties: IndexMap<String, Property>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required: Vec<String>,
     /// Set on enum component schemas (`Policy692Enum`).
-    #[serde(rename = "enum", default)]
+    #[serde(rename = "enum", default, skip_serializing_if = "Vec::is_empty")]
     pub enum_values: Vec<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Property {
-    #[serde(rename = "type")]
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub ty: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<String>,
-    #[serde(rename = "$ref")]
+    #[serde(rename = "$ref", skip_serializing_if = "Option::is_none")]
     pub reference: Option<String>,
-    #[serde(rename = "readOnly", default)]
+    #[serde(rename = "readOnly", default, skip_serializing_if = "is_false")]
     pub read_only: bool,
-    #[serde(rename = "writeOnly", default)]
+    #[serde(rename = "writeOnly", default, skip_serializing_if = "is_false")]
     pub write_only: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub nullable: bool,
-    #[serde(rename = "enum", default)]
+    #[serde(rename = "enum", default, skip_serializing_if = "Vec::is_empty")]
     pub enum_values: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub items: Option<Box<Property>>,
-    #[serde(rename = "allOf", default)]
+    #[serde(rename = "allOf", default, skip_serializing_if = "Vec::is_empty")]
     pub all_of: Vec<Property>,
-    #[serde(rename = "oneOf", default)]
+    #[serde(rename = "oneOf", default, skip_serializing_if = "Vec::is_empty")]
     pub one_of: Vec<Property>,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 impl Property {
@@ -172,7 +180,7 @@ impl Property {
 }
 
 /// Top-level POST endpoint without a list (`orphans/cleanup/`, `repair/`, `tasks/purge/`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct GlobalOperation {
     pub path: String,
     pub body_schema: Option<String>,
@@ -182,7 +190,8 @@ pub struct GlobalOperation {
     pub multipart: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Method {
     Get,
     Post,
@@ -191,7 +200,7 @@ pub enum Method {
     Delete,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct OpSet {
     pub list: bool,
     pub create: bool,
@@ -201,7 +210,7 @@ pub struct OpSet {
     pub delete: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Action {
     /// Path suffix after the href, without slash (`sync`, `modify`, `add_role`).
     pub verb: String,
@@ -213,7 +222,8 @@ pub struct Action {
     pub multipart: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ParamType {
     String,
     Integer,
@@ -222,7 +232,7 @@ pub enum ParamType {
     Array,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Param {
     pub name: String,
     pub ty: ParamType,
@@ -230,7 +240,7 @@ pub struct Param {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ResourceType {
     /// Path-derived id: `repositories/rpm/rpm`, `tasks`, `repositories/rpm/rpm/versions`.
     pub id: String,
@@ -471,6 +481,22 @@ impl Registry {
         self.operations.get(rel)
     }
 
+    /// Every type, schema and global operation, for clients that build their own UI
+    /// from the registry (the web interface).
+    pub fn export(&self) -> impl Serialize + '_ {
+        #[derive(Serialize)]
+        struct Export<'a> {
+            types: &'a [ResourceType],
+            schemas: &'a HashMap<String, Schema>,
+            operations: std::collections::BTreeMap<&'a str, &'a GlobalOperation>,
+        }
+        Export {
+            types: &self.types,
+            schemas: &self.schemas,
+            operations: self.operations.iter().map(|(k, v)| (k.as_str(), v)).collect(),
+        }
+    }
+
     /// Relative paths of every global operation, sorted.
     pub fn operation_paths(&self) -> Vec<&str> {
         let mut out: Vec<&str> = self.operations.keys().map(String::as_str).collect();
@@ -680,6 +706,19 @@ mod tests {
         assert!(comps.multipart && comps.summary.as_deref() == Some("Upload comps.xml"));
         assert!(!reg.operation("rpm/copy/").unwrap().multipart);
         assert!(reg.operation_paths().contains(&"remotes/python/python/from_bandersnatch/"));
+    }
+
+    #[test]
+    fn exports_types_schemas_and_operations() {
+        let reg = fixture();
+        let json = serde_json::to_value(reg.export()).unwrap();
+        let rpm = json["types"].as_array().unwrap().iter().find(|t| t["id"] == "repositories/rpm/rpm").unwrap();
+        assert_eq!(rpm["ops"]["create"], true);
+        assert!(rpm["actions"].as_array().unwrap().iter().any(|a| a["verb"] == "sync" && a["method"] == "POST"));
+        assert_eq!(json["operations"]["rpm/comps/"]["multipart"], true);
+        let url = &json["schemas"]["file.FileRemote"]["properties"]["url"];
+        assert_eq!(url["type"], "string");
+        assert!(url.get("readOnly").is_none() && url.get("enum").is_none(), "defaults are omitted");
     }
 
     #[test]
