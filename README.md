@@ -6,6 +6,8 @@ Terminal UI to observe and manage [Pulp 3](https://pulpproject.org) servers, in 
 Every resource type exposed by the server (all installed plugins) is discovered from its OpenAPI
 schema and browsable from the sidebar or the `:` command line.
 
+`pulply serve` offers the same features as a web interface (see [Web interface](#web-interface)).
+
 Status: milestones M1 (observe), M2 (create/edit/delete, workflows), M3 (plugin views, upload, diff,
 relations) and M4 (RBAC, administration, customization, packaging) done. See [`docs/spec/`](docs/spec/)
 for requirements, design and roadmap.
@@ -166,11 +168,49 @@ Manage (hidden and refused with `--readonly` or `readonly = true`):
 Tasks started from pulply open a progress window (`Esc` detaches it), are followed in the status
 bar and notify on completion; a distribution's URL is shown once created.
 
+## Web interface
+
+```sh
+pulply serve                         # http://127.0.0.1:8484/, default context
+pulply serve --context lab --open    # opens the browser on context lab
+pulply serve --readonly              # no modification possible from the interface
+```
+
+The interface is built with [HeroUI](https://heroui.com) and embedded in the binary. It uses the same
+configuration and contexts as the TUI, and the same discovery of the server's OpenAPI schema: every
+plugin's resources can be listed (search, filters, sorting, pagination), created, edited and
+deleted; repositories are synced, published, distributed and rolled back from their page; content
+is uploaded from the browser (chunked) and added to or removed from repositories; tasks are followed
+live; role assignments, global operations (orphan cleanup, repair, reclaim, purge, copy, prune…) and
+every plugin action are available. `Ctrl-K` / `⌘K` jumps to any resource type.
+
+The pulply server keeps the Pulp credentials (asked once in the browser when they are not in the
+configuration) and relays the browser's requests to Pulp. Every API request needs an access token:
+
+- on a loopback address (default `127.0.0.1:8484`), the token is embedded in the served page and
+  requests with a foreign `Host` header are refused (DNS rebinding);
+- on any other address (`--listen 0.0.0.0:8484`), the URL printed at startup carries the token
+  (`#token=…`), or the interface asks for it. Anyone with the token acts with your Pulp
+  credentials: prefer a loopback address behind an SSH tunnel or a reverse proxy.
+
+The token is random at each start, or fixed with `--token` / `PULPLY_WEB_TOKEN`.
+
 ## Development
 
 ```sh
-PULP_PORT=8080 docker compose -f deploy/compose.yml up -d   # admin / password
-cargo test --workspace
+make            # formatting, clippy, Rust and web tests, release build (`make help` for the rest)
+make pulp-up    # local Pulp on :8080 (admin / password)
+make serve ARGS="--context lab"
+```
+
+The web interface lives in `crates/pulply/web` (React, Vite, HeroUI, Tailwind CSS, TanStack Query).
+`cargo build` rebuilds it (`npm ci` + `npm run build`, Node 20.19+) when its sources changed, and
+warns instead of failing without npm (`PULPLY_SKIP_WEB=1` skips it). To work on it with hot reload:
+
+```sh
+cargo run -- serve --token dev                      # API on 127.0.0.1:8484
+cd crates/pulply/web && npm run dev                 # open http://localhost:5173/#token=dev
+npm test && npm run typecheck
 ```
 
 ### Release

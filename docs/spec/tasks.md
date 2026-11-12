@@ -60,6 +60,13 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 **Acceptation M4** : un utilisateur non admin voit uniquement les actions permises ; la release produit tous les artefacts.
 
+## M5 — Interface web
+
+- [x] `pulply serve` : serveur axum embarqué, proxy authentifié vers Pulp (identifiants côté serveur, mot de passe demandé dans le navigateur si absent), registre OpenAPI exporté en JSON, SPA embarquée (`rust-embed`, construite par `build.rs`).
+- [x] Sécurité : jeton d'accès sur toute l'API (dans la page en loopback avec contrôle du `Host`, affiché au démarrage sinon), `--readonly` appliqué par le proxy.
+- [x] SPA React + HeroUI v3 : tableau de bord, navigation par plugin et palette `Ctrl-K`, listes (recherche, filtres, tri, pagination, actions groupées), détail (onglets contenu, versions, publication, rôles, JSON), formulaires générés depuis le schéma (sélecteurs de ressources, champs fichier), sync / publish / distribute / rollback, upload par morceaux, ajout et retrait de contenu, suivi des tâches, opérations globales, thème clair/sombre, mobile.
+- [x] Testée de bout en bout contre un conteneur Pulp (création, upload 7 Mo vérifié par sha256, sync distante, publication, distribution, rollback, suppression, mot de passe, lecture seule, mode jeton).
+
 ## Correctifs
 
 - [x] Domaine appliqué seulement si le serveur a les domaines activés, `status/` lu hors domaine, notification si un domaine configuré est ignoré — R1.8, R1.9, R2.1
