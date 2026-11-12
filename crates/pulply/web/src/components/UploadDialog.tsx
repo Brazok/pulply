@@ -1,16 +1,22 @@
 // Chunked uploads from the browser (`uploads/` API through the proxy), each file then
 // turned into content, optionally added to a repository.
 
-import {CloudArrowUpIn} from "@gravity-ui/icons";
-import {Button, Label, ListBox, Modal, ProgressBar, Select} from "@heroui/react";
 import {useQueryClient} from "@tanstack/react-query";
+import {CloudUpload} from "lucide-react";
 import {useState} from "react";
 
 import {type Json, json, request} from "../lib/api";
 import {bytes, typeTitle} from "../lib/format";
 import type {ResourceType} from "../lib/registry";
 import {errorText, useSession} from "../lib/session";
+import {cn} from "../lib/utils";
 import {HrefPicker} from "./HrefPicker";
+import {Button} from "./ui/button";
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "./ui/dialog";
+import {Field, FieldLabel} from "./ui/field";
+import {Progress} from "./ui/progress";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "./ui/select";
+import {Spinner} from "./ui/spinner";
 
 interface Item {
   file: File;
@@ -96,42 +102,37 @@ export function UploadDialog({
   const finished = items.length > 0 && items.every((i) => i.phase === "done" || i.phase === "failed");
 
   return (
-    <Modal.Backdrop isOpen isDismissable={!running} onOpenChange={(open) => !open && !running && onClose()}>
-      <Modal.Container scroll="inside" size="lg">
-        <Modal.Dialog>
-          <Modal.CloseTrigger />
-          <Modal.Header>
-            <Modal.Heading>Upload content</Modal.Heading>
-          </Modal.Header>
-          <Modal.Body className="flex flex-col gap-4">
+    <Dialog open onOpenChange={(open) => !open && !running && onClose()}>
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl" showCloseButton={!running}>
+        <DialogHeader>
+          <DialogTitle>Upload content</DialogTitle>
+        </DialogHeader>
+        <div className="-mx-4 flex min-h-0 flex-col gap-4 overflow-y-auto px-4">
             {types.length > 1 && (
-              <Select fullWidth isDisabled={running} value={typeId} onChange={(k) => setTypeId(String(k))}>
-                <Label>Content type</Label>
-                <Select.Trigger>
-                  <Select.Value />
-                  <Select.Indicator />
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
+              <Field>
+                <FieldLabel htmlFor="upload-type">Content type</FieldLabel>
+                <Select disabled={running} value={typeId} onValueChange={setTypeId}>
+                  <SelectTrigger className="w-full" id="upload-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
                     {types.map((t) => (
-                      <ListBox.Item key={t.id} id={t.id} textValue={typeTitle(t)}>
+                      <SelectItem key={t.id} value={t.id}>
                         {typeTitle(t)}
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
+                      </SelectItem>
                     ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
+                  </SelectContent>
+                </Select>
+              </Field>
             )}
             {acceptsRepo && repoType && !fixedRepo && (
-              <div className="flex flex-col gap-1.5">
-                <HrefPicker label="Add to repository (optional)" type={repoType} value={repository} onChange={setRepository} />
-              </div>
+              <HrefPicker label="Add to repository (optional)" type={repoType} value={repository} onChange={setRepository} />
             )}
             <label
-              className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
-                dragging ? "border-accent bg-accent-soft" : "border-default hover:bg-default/40"
-              }`}
+              className={cn(
+                "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors",
+                dragging ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+              )}
               onDragLeave={() => setDragging(false)}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -143,9 +144,9 @@ export function UploadDialog({
                 add(e.dataTransfer.files);
               }}
             >
-              <CloudArrowUpIn className="size-8 text-accent" />
+              <CloudUpload className="size-8 text-primary" />
               <span className="font-medium">Drop files here or click to browse</span>
-              <span className="text-xs text-muted">Sent in chunks of {bytes(chunkSize)}</span>
+              <span className="text-xs text-muted-foreground">Sent in chunks of {bytes(chunkSize)}</span>
               <input multiple className="hidden" disabled={running} type="file" onChange={(e) => add(e.target.files)} />
             </label>
             {items.length > 0 && (
@@ -154,39 +155,36 @@ export function UploadDialog({
                   <li key={i} className="flex flex-col gap-1">
                     <div className="flex items-center justify-between gap-2 text-sm">
                       <span className="truncate font-medium">{it.file.name}</span>
-                      <span className={it.phase === "failed" ? "text-danger" : "text-muted"}>
+                      <span className={it.phase === "failed" ? "text-destructive" : "text-muted-foreground"}>
                         {it.phase === "uploading" ? `${bytes(it.sent)} / ${bytes(it.file.size)}` : it.phase}
                       </span>
                     </div>
-                    <ProgressBar
+                    <Progress
                       aria-label={`Upload of ${it.file.name}`}
-                      color={it.phase === "failed" ? "danger" : it.phase === "done" ? "success" : "accent"}
-                      isIndeterminate={it.phase === "creating"}
-                      size="sm"
-                      value={it.file.size ? (it.sent / it.file.size) * 100 : it.phase === "done" ? 100 : 0}
-                    >
-                      <ProgressBar.Track>
-                        <ProgressBar.Fill />
-                      </ProgressBar.Track>
-                    </ProgressBar>
-                    {it.error && <span className="text-xs text-danger">{it.error}</span>}
+                      className={cn(
+                        it.phase === "failed" && "*:data-[slot=progress-indicator]:bg-destructive",
+                        it.phase === "done" && "*:data-[slot=progress-indicator]:bg-success",
+                      )}
+                      value={it.phase === "creating" ? null : it.file.size ? (it.sent / it.file.size) * 100 : it.phase === "done" ? 100 : 0}
+                    />
+                    {it.error && <span className="text-xs text-destructive">{it.error}</span>}
                   </li>
                 ))}
               </ul>
             )}
-          </Modal.Body>
-          <Modal.Footer>
-            <Button isDisabled={running} slot="close" variant="tertiary">
-              {finished ? "Close" : "Cancel"}
+        </div>
+        <DialogFooter>
+          <Button disabled={running} variant="outline" onClick={onClose}>
+            {finished ? "Close" : "Cancel"}
+          </Button>
+          {!finished && (
+            <Button disabled={!items.length || !type || running} onClick={() => void start()}>
+              {running && <Spinner />}
+              Upload {items.length || ""} file{items.length > 1 ? "s" : ""}
             </Button>
-            {!finished && (
-              <Button isDisabled={!items.length || !type || running} isPending={running} onPress={() => void start()}>
-                Upload {items.length || ""} file{items.length > 1 ? "s" : ""}
-              </Button>
-            )}
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-    </Modal.Backdrop>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

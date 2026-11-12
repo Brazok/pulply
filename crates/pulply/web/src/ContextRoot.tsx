@@ -1,12 +1,12 @@
 // One context: connects (asking for a password when needed), loads the registry, then
 // renders the application shell and its pages.
 
-import {Button} from "@heroui/react";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Route, Routes, useNavigate, useParams} from "react-router";
 
 import {Center, ErrorScreen, PasswordScreen, TokenScreen} from "./components/screens";
 import {Shell} from "./components/Shell";
+import {Button} from "./components/ui/button";
 import {ApiError, hasToken, json} from "./lib/api";
 import type {RegistryExport} from "./lib/registry";
 import {type SessionInfo, SessionProvider, connect, errorText, useContexts} from "./lib/session";
@@ -59,14 +59,14 @@ export function ContextRoot() {
   if (!context) {
     return (
       <ErrorScreen error={new Error(`Unknown context "${ctx}".`)}>
-        <Button variant="secondary" onPress={() => navigate("/")}>
+        <Button variant="outline" onClick={() => navigate("/")}>
           Default context
         </Button>
       </ErrorScreen>
     );
   }
   const switcher = contexts.data.contexts.length > 1 && (
-    <Button variant="ghost" onPress={() => navigate("/")}>
+    <Button variant="ghost" onClick={() => navigate("/")}>
       Other context
     </Button>
   );
@@ -96,7 +96,7 @@ export function ContextRoot() {
   if (!session.data || !registry.data) {
     return (
       <Center>
-        <div className="flex flex-col items-center gap-3 text-muted">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Center loading />
           <span className="text-sm">{session.data ? "Reading the server's API schema…" : `Connecting to ${context.base_url}…`}</span>
         </div>

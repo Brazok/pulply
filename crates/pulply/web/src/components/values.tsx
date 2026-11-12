@@ -1,6 +1,5 @@
 // Rendering of Pulp values: hrefs as named links, timestamps, labels, nested JSON.
 
-import {Chip, Tooltip} from "@heroui/react";
 import {Link as RouterLink} from "react-router";
 
 import type {Json} from "../lib/api";
@@ -8,6 +7,8 @@ import {TASK_COLORS, bytes, dateTime, relativeTime, shortHref} from "../lib/form
 import {isHref, versionNumber, versionRepository} from "../lib/registry";
 import {itemUrl} from "../lib/routes";
 import {useHrefName, usePulp, useSession} from "../lib/session";
+import {Badge} from "./ui/badge";
+import {Tooltip, TooltipContent, TooltipTrigger} from "./ui/tooltip";
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
@@ -19,7 +20,7 @@ export function HrefLink({href, label, className}: {href: string; label?: string
   const text = label ?? (repo ? `${name ?? shortHref(repo)} · v${n}` : (name ?? shortHref(href)));
   return (
     <RouterLink
-      className={`text-accent hover:underline underline-offset-2 break-all ${className ?? ""}`}
+      className={`text-primary hover:underline underline-offset-2 break-all ${className ?? ""}`}
       title={href}
       to={itemUrl(ctx, href)}
     >
@@ -38,17 +39,17 @@ export function PrnLink({prn}: {prn: string}) {
   );
   const href = found.data?.results[0]?.pulp_href;
   if (typeof href === "string") return <HrefLink href={href} />;
-  return <span className="font-mono text-xs text-muted break-all">{prn}</span>;
+  return <span className="font-mono text-xs text-muted-foreground break-all">{prn}</span>;
 }
 
 export function TimeAgo({ts}: {ts: string | null | undefined}) {
-  if (!ts) return <span className="text-muted">—</span>;
+  if (!ts) return <span className="text-muted-foreground">—</span>;
   return (
-    <Tooltip delay={300}>
-      <Tooltip.Trigger>
+    <Tooltip>
+      <TooltipTrigger asChild>
         <span className="cursor-default whitespace-nowrap">{relativeTime(ts)}</span>
-      </Tooltip.Trigger>
-      <Tooltip.Content>{dateTime(ts)}</Tooltip.Content>
+      </TooltipTrigger>
+      <TooltipContent>{dateTime(ts)}</TooltipContent>
     </Tooltip>
   );
 }
@@ -56,21 +57,19 @@ export function TimeAgo({ts}: {ts: string | null | undefined}) {
 export function StateChip({state}: {state: unknown}) {
   const s = String(state ?? "");
   return (
-    <Chip color={TASK_COLORS[s] ?? "default"} size="sm" variant="soft">
-      {s || "—"}
-    </Chip>
+<Badge variant={TASK_COLORS[s] ?? "secondary"}>{s || "—"}</Badge>
   );
 }
 
 export function Labels({labels}: {labels: unknown}) {
   const entries = Object.entries((labels as Record<string, string>) ?? {});
-  if (!entries.length) return <span className="text-muted">—</span>;
+  if (!entries.length) return <span className="text-muted-foreground">—</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {entries.map(([k, v]) => (
-        <Chip key={k} size="sm" variant="secondary">
+        <Badge key={k} variant="secondary">
           {v ? `${k}=${v}` : k}
-        </Chip>
+        </Badge>
       ))}
     </div>
   );
@@ -78,14 +77,12 @@ export function Labels({labels}: {labels: unknown}) {
 
 /** Any field value, by name and shape. */
 export function Value({name, value}: {name?: string; value: unknown}) {
-  if (value === null || value === undefined || value === "") return <span className="text-muted">—</span>;
+  if (value === null || value === undefined || value === "") return <span className="text-muted-foreground">—</span>;
   if (name === "pulp_labels") return <Labels labels={value} />;
   if (name === "state") return <StateChip state={value} />;
   if (typeof value === "boolean") {
     return (
-      <Chip color={value ? "success" : "default"} size="sm" variant="soft">
-        {value ? "Yes" : "No"}
-      </Chip>
+      <Badge variant={value ? "success" : "secondary"}>{value ? "Yes" : "No"}</Badge>
     );
   }
   if (typeof value === "number") {
@@ -97,7 +94,7 @@ export function Value({name, value}: {name?: string; value: unknown}) {
     if (ISO.test(value)) return <TimeAgo ts={value} />;
     if (/^https?:\/\//.test(value)) {
       return (
-        <a className="text-accent hover:underline break-all" href={value} rel="noreferrer" target="_blank">
+        <a className="text-primary hover:underline break-all" href={value} rel="noreferrer" target="_blank">
           {value}
         </a>
       );
@@ -105,14 +102,14 @@ export function Value({name, value}: {name?: string; value: unknown}) {
     return <span className="break-all whitespace-pre-wrap">{value}</span>;
   }
   if (Array.isArray(value)) {
-    if (!value.length) return <span className="text-muted">—</span>;
+    if (!value.length) return <span className="text-muted-foreground">—</span>;
     if (value.every((v) => typeof v === "string" && !isHref(v)) && value.length <= 12) {
       return (
         <div className="flex flex-wrap gap-1">
           {value.map((v) => (
-            <Chip key={v as string} size="sm" variant="secondary">
+            <Badge key={v as string} variant="secondary">
               {v as string}
-            </Chip>
+            </Badge>
           ))}
         </div>
       );
@@ -125,7 +122,7 @@ export function Value({name, value}: {name?: string; value: unknown}) {
               <HrefLink href={h as string} />
             </li>
           ))}
-          {value.length > 50 && <li className="text-muted text-sm">…and {value.length - 50} more</li>}
+          {value.length > 50 && <li className="text-muted-foreground text-sm">…and {value.length - 50} more</li>}
         </ul>
       );
     }
@@ -136,7 +133,7 @@ export function Value({name, value}: {name?: string; value: unknown}) {
 /** Collapsible-free JSON tree with clickable hrefs. */
 export function JsonView({value}: {value: unknown}) {
   return (
-    <pre className="text-xs leading-5 font-mono bg-default/40 rounded-xl p-3 overflow-auto max-h-[480px]">
+    <pre className="text-xs leading-5 font-mono bg-muted/60 rounded-lg p-3 overflow-auto max-h-[480px]">
       <JsonNode value={value} indent={0} />
     </pre>
   );
@@ -170,7 +167,7 @@ function JsonNode({value, indent}: {value: unknown; indent: number}) {
         {entries.map(([k, v], i) => (
           <span key={k}>
             {pad}
-            <span className="text-accent">"{k}"</span>: <JsonNode indent={indent + 1} value={v} />
+            <span className="text-primary">"{k}"</span>: <JsonNode indent={indent + 1} value={v} />
             {i < entries.length - 1 ? ",\n" : "\n"}
           </span>
         ))}

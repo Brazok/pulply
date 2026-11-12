@@ -1,31 +1,33 @@
 // Forms generated from OpenAPI request schemas: creation, edition (PATCH of the changed
 // fields only) and actions/operations. Files go out as multipart parts.
 
-import {
-  Button,
-  Description,
-  Disclosure,
-  Input,
-  Label,
-  ListBox,
-  Modal,
-  NumberField,
-  Select,
-  Spinner,
-  Switch,
-  TextArea,
-  TextField,
-  toast,
-} from "@heroui/react";
 import {useQueryClient} from "@tanstack/react-query";
+import {ChevronDown} from "lucide-react";
 import {type ReactNode, useEffect, useId, useMemo, useState} from "react";
+import {toast} from "sonner";
 
 import {ApiError, type Body, type Json, taskOf} from "../lib/api";
 import {fieldLabel} from "../lib/format";
 import type {Property, Registry, Schema} from "../lib/registry";
 import {errorText, usePulp, useSession} from "../lib/session";
+import {cn} from "../lib/utils";
 import {ResultDialog} from "./dialogs";
 import {HrefPicker} from "./HrefPicker";
+import {Button} from "./ui/button";
+import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "./ui/collapsible";
+import {Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "./ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import {Field, FieldDescription, FieldError, FieldLabel} from "./ui/field";
+import {Input} from "./ui/input";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "./ui/select";
+import {Spinner} from "./ui/spinner";
+import {Switch} from "./ui/switch";
+import {Textarea} from "./ui/textarea";
 
 export type Kind =
   | {k: "text"}
@@ -228,14 +230,21 @@ export function buildBody(
 
 // ---------------------------------------------------------------- inputs
 
+/** Radix Select items cannot carry an empty value. */
+const UNSET = "__unset";
+
 function RelationInput({field, value, onChange, invalid, labelId}: FieldProps) {
   const {registry} = useSession();
   const target = field.kind.k === "relation" && field.kind.target ? registry.get(field.kind.target) : undefined;
   if (!target?.list_path) {
     return (
-      <TextField fullWidth aria-labelledby={labelId} isInvalid={invalid} validationBehavior="aria" value={value} onChange={onChange}>
-        <Input placeholder="/pulp/api/v3/…" />
-      </TextField>
+      <Input
+        aria-invalid={invalid || undefined}
+        aria-labelledby={labelId}
+        placeholder="/pulp/api/v3/…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     );
   }
   return <HrefPicker invalid={invalid} labelId={labelId} type={target} value={value} onChange={onChange} />;
@@ -250,24 +259,49 @@ interface FieldProps {
   labelId: string;
 }
 
+function MultiSelect({choices, value, onChange, labelId}: {choices: string[]; value: string; onChange: (v: string) => void; labelId: string}) {
+  const selected = value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const set = (c: string, on: boolean) => onChange((on ? [...selected, c] : selected.filter((x) => x !== c)).join(", "));
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button aria-labelledby={labelId} className="w-full justify-between font-normal" variant="outline">
+          <span className={cn("truncate", !selected.length && "text-muted-foreground")}>{selected.length ? selected.join(", ") : "None"}</span>
+          <ChevronDown className="text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
+        {choices.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c}
+            checked={selected.includes(c)}
+            onCheckedChange={(on) => set(c, on === true)}
+            onSelect={(e) => e.preventDefault()}
+          >
+            {c}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function FieldInput(props: FieldProps & {file: File | null; onFile: (f: File | null) => void}) {
-  const {field, value, onChange, invalid} = props;
+  const {field, value, onChange, invalid, labelId} = props;
   const kind = field.kind;
+  const common = {"aria-invalid": invalid || undefined, "aria-labelledby": labelId};
   switch (kind.k) {
     case "bool": {
       const unset = value === "";
       return (
         <div className="flex items-center gap-3">
-          <Switch aria-labelledby={props.labelId} isSelected={value === "true"} onChange={(on) => onChange(on ? "true" : "false")}>
-            <Switch.Content>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <span className="text-sm">{unset ? `Default${field.placeholder ? ` (${field.placeholder})` : ""}` : value === "true" ? "Yes" : "No"}</span>
-            </Switch.Content>
-          </Switch>
+          <Switch aria-labelledby={labelId} checked={value === "true"} onCheckedChange={(on) => onChange(on ? "true" : "false")} />
+          <span className="text-sm">{unset ? `Default${field.placeholder ? ` (${field.placeholder})` : ""}` : value === "true" ? "Yes" : "No"}</span>
           {!unset && !field.required && (
-            <Button size="sm" variant="ghost" onPress={() => onChange("")}>
+            <Button size="sm" variant="ghost" onClick={() => onChange("")}>
               Reset
             </Button>
           )}
@@ -276,124 +310,70 @@ function FieldInput(props: FieldProps & {file: File | null; onFile: (f: File | n
     }
     case "enum":
       return (
-        <Select
-          fullWidth
-          aria-labelledby={props.labelId}
-          isInvalid={invalid}
-          placeholder={field.placeholder ? `Default (${field.placeholder})` : "Not set"}
-          validationBehavior="aria"
-          value={value || null}
-          onChange={(key) => onChange(key === null || key === "__unset" ? "" : String(key))}
-        >
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {[
-                ...(field.required ? [] : [{id: "__unset", label: "Not set"}]),
-                ...kind.choices.map((c) => ({id: c, label: c})),
-              ].map((c) => (
-                <ListBox.Item key={c.id} id={c.id} textValue={c.label}>
-                  {c.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
+        <Select value={value || (field.required ? "" : UNSET)} onValueChange={(v) => onChange(v === UNSET ? "" : v)}>
+          <SelectTrigger {...common} className="w-full">
+            <SelectValue placeholder={field.placeholder ? `Default (${field.placeholder})` : "Not set"} />
+          </SelectTrigger>
+          <SelectContent>
+            {!field.required && (
+              <SelectItem value={UNSET}>
+                <span className="text-muted-foreground">{field.placeholder ? `Default (${field.placeholder})` : "Not set"}</span>
+              </SelectItem>
+            )}
+            {kind.choices.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       );
     case "list":
-      if (kind.choices.length) {
-        const selected = value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        return (
-          <Select
-            fullWidth
-            aria-labelledby={props.labelId}
-            placeholder="None"
-            selectionMode="multiple"
-            value={selected}
-            onChange={(keys) => onChange(((keys as unknown[]) ?? []).map(String).join(", "))}
-          >
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox selectionMode="multiple">
-                {kind.choices.map((c) => (
-                  <ListBox.Item key={c} id={c} textValue={c}>
-                    {c}
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-        );
-      }
-      return (
-        <TextField fullWidth aria-labelledby={props.labelId} isInvalid={invalid} validationBehavior="aria" value={value} onChange={onChange}>
-          <Input placeholder="Comma-separated values" />
-        </TextField>
-      );
+      if (kind.choices.length) return <MultiSelect choices={kind.choices} labelId={labelId} value={value} onChange={onChange} />;
+      return <Input {...common} placeholder="Comma-separated values" value={value} onChange={(e) => onChange(e.target.value)} />;
     case "json":
       return (
-        <TextField fullWidth aria-labelledby={props.labelId} isInvalid={invalid} validationBehavior="aria" value={value} onChange={onChange}>
-          <TextArea className="font-mono text-xs" placeholder={field.placeholder ?? '{"key": "value"}'} rows={3} />
-        </TextField>
+        <Textarea
+          {...common}
+          className="font-mono text-xs"
+          placeholder={field.placeholder ?? '{"key": "value"}'}
+          rows={3}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
       );
     case "integer":
     case "number":
       return (
-        <NumberField
-          fullWidth
-          aria-labelledby={props.labelId}
-          isInvalid={invalid}
-          step={kind.k === "integer" ? 1 : 0.01}
-          validationBehavior="aria"
-          value={value === "" ? Number.NaN : Number(value)}
-          onChange={(n) => onChange(n === undefined || Number.isNaN(n) ? "" : String(n))}
-        >
-          <NumberField.Group>
-            <NumberField.DecrementButton />
-            <NumberField.Input placeholder={field.placeholder ?? undefined} />
-            <NumberField.IncrementButton />
-          </NumberField.Group>
-        </NumberField>
+        <Input
+          {...common}
+          inputMode={kind.k === "integer" ? "numeric" : "decimal"}
+          placeholder={field.placeholder ?? undefined}
+          step={kind.k === "integer" ? 1 : "any"}
+          type="number"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
       );
     case "relation":
       return <RelationInput {...props} />;
     case "file":
       return (
-        <label className="flex items-center gap-3 rounded-xl border border-dashed border-default p-3 cursor-pointer hover:bg-default/40">
-          <input
-            aria-labelledby={props.labelId}
-            className="hidden"
-            type="file"
-            onChange={(e) => props.onFile(e.target.files?.[0] ?? null)}
-          />
-          <span className="text-sm font-medium text-accent">Choose a file</span>
-          <span className="text-sm text-muted truncate">{props.file ? props.file.name : "No file selected"}</span>
+        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 transition-colors hover:bg-muted/50">
+          <input aria-labelledby={labelId} className="hidden" type="file" onChange={(e) => props.onFile(e.target.files?.[0] ?? null)} />
+          <span className="text-sm font-medium text-primary">Choose a file</span>
+          <span className="truncate text-sm text-muted-foreground">{props.file ? props.file.name : "No file selected"}</span>
         </label>
       );
     default:
       return (
-        <TextField
-          fullWidth
-          aria-labelledby={props.labelId}
-          isInvalid={invalid}
+        <Input
+          {...common}
+          placeholder={field.placeholder ?? undefined}
           type={kind.k === "secret" ? "password" : "text"}
-          validationBehavior="aria"
           value={value}
-          onChange={onChange}
-        >
-          <Input placeholder={field.placeholder ?? undefined} />
-        </TextField>
+          onChange={(e) => onChange(e.target.value)}
+        />
       );
   }
 }
@@ -412,25 +392,22 @@ function FieldRow({
   const err = errors[field.name];
   const labelId = useId();
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label id={labelId} isRequired={field.required}>
+    <Field data-invalid={!!err || undefined}>
+      <FieldLabel id={labelId}>
         {fieldLabel(field.name)}
-      </Label>
+        {field.required && <span className="text-destructive">*</span>}
+      </FieldLabel>
       <FieldInput
         field={field}
-        labelId={labelId}
         file={state.files[field.name] ?? null}
         invalid={!!err}
+        labelId={labelId}
         value={state.values[field.name] ?? ""}
         onChange={(v) => setState((s) => ({...s, values: {...s.values, [field.name]: v}}))}
         onFile={(f) => setState((s) => ({...s, files: {...s.files, [field.name]: f}}))}
       />
-      {err ? (
-        <span className="text-danger text-xs">{err.join(" ")}</span>
-      ) : field.help ? (
-        <Description className="text-xs text-muted">{field.help}</Description>
-      ) : null}
-    </div>
+      {err ? <FieldError>{err.join(" ")}</FieldError> : field.help ? <FieldDescription>{field.help}</FieldDescription> : null}
+    </Field>
   );
 }
 
@@ -460,11 +437,11 @@ export interface FormSpec {
 
 export function FormModal({spec, onClose}: {spec: FormSpec | null; onClose: () => void}) {
   return (
-    <Modal.Backdrop isOpen={!!spec} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Container scroll="inside" size="lg">
-        <Modal.Dialog>{spec && <FormBody key={spec.path + spec.title} spec={spec} onClose={onClose} />}</Modal.Dialog>
-      </Modal.Container>
-    </Modal.Backdrop>
+    <Dialog open={!!spec} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
+        {spec && <FormBody key={spec.path + spec.title} spec={spec} onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -488,6 +465,7 @@ function FormBody({spec, onClose}: {spec: FormSpec; onClose: () => void}) {
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<unknown | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const primary = fields.filter((f) => f.required || PRIMARY.has(f.name) || (spec.initial && f.name in spec.initial));
   const advanced = fields.filter((f) => !primary.includes(f));
@@ -537,57 +515,54 @@ function FormBody({spec, onClose}: {spec: FormSpec; onClose: () => void}) {
 
   return (
     <>
-      <Modal.CloseTrigger />
-      <Modal.Header>
-        <Modal.Heading>{spec.title}</Modal.Heading>
-      </Modal.Header>
-      <Modal.Body>
+      <DialogHeader>
+        <DialogTitle>{spec.title}</DialogTitle>
+      </DialogHeader>
+      <div className="-mx-4 min-h-0 overflow-y-auto px-4">
         <form
-          className="flex flex-col gap-4 py-1"
+          className="flex flex-col gap-5 py-1"
+          id="schema-form"
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
           }}
         >
           {spec.intro}
-          {spec.editHref && loaded.isLoading && <Spinner />}
-          {!fields.length && <p className="text-muted text-sm">This action takes no parameters.</p>}
+          {spec.editHref && loaded.isLoading && <Spinner className="text-muted-foreground" />}
+          {!fields.length && <p className="text-sm text-muted-foreground">This action takes no parameters.</p>}
           {primary.map((f) => (
             <FieldRow key={f.name} errors={errors} field={f} setState={setState} state={state} />
           ))}
           {advanced.length > 0 && (
-            <Disclosure defaultExpanded={advanced.some((f) => errors[f.name])}>
-              <Disclosure.Heading>
-                <Button className="w-full justify-between" slot="trigger" variant="ghost">
+            <Collapsible open={showAdvanced || advanced.some((f) => errors[f.name])} onOpenChange={setShowAdvanced}>
+              <CollapsibleTrigger asChild>
+                <Button className="group w-full justify-between" type="button" variant="ghost">
                   Advanced options ({advanced.length})
-                  <Disclosure.Indicator />
+                  <ChevronDown className="transition-transform group-data-[state=open]:rotate-180" />
                 </Button>
-              </Disclosure.Heading>
-              <Disclosure.Content>
-                <Disclosure.Body className="flex flex-col gap-4 pt-3">
-                  {advanced.map((f) => (
-                    <FieldRow key={f.name} errors={errors} field={f} setState={setState} state={state} />
-                  ))}
-                </Disclosure.Body>
-              </Disclosure.Content>
-            </Disclosure>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="flex flex-col gap-5 pt-3">
+                {advanced.map((f) => (
+                  <FieldRow key={f.name} errors={errors} field={f} setState={setState} state={state} />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           )}
-          {general && <p className="text-danger text-sm">{general}</p>}
+          {general && <p className="text-sm text-destructive">{general}</p>}
           {confirming && (
             <p className="text-warning text-sm font-medium">This operation is destructive. Press the button again to confirm.</p>
           )}
-          <button className="hidden" type="submit" />
         </form>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button slot="close" variant="tertiary">
-          Cancel
-        </Button>
-        <Button isPending={pending} variant={spec.danger ? "danger" : "primary"} onPress={() => void submit()}>
-          {pending && <Spinner color="current" size="sm" />}
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">Cancel</Button>
+        </DialogClose>
+        <Button disabled={pending} form="schema-form" type="submit" variant={spec.danger ? "destructive" : "default"}>
+          {pending && <Spinner />}
           {confirming ? "Confirm" : (spec.submitLabel ?? (spec.method === "PATCH" ? "Save" : "Submit"))}
         </Button>
-      </Modal.Footer>
+      </DialogFooter>
       <ResultDialog
         title={spec.title}
         value={result}

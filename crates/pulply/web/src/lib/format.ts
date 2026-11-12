@@ -171,9 +171,17 @@ export function bytes(n: number | null | undefined): string {
 /** Task name without module path: `pulpcore.app.tasks.base.general_create` → `general create`. */
 export function taskName(name: unknown): string {
   if (typeof name !== "string") return "";
-  const last = name.split(".").at(-1) ?? name;
   // `ageneral_update` is the async variant of `general_update`.
-  return last.replace(/^a(general_)/, "$1").replace(/_/g, " ");
+  const last = (name.split(".").at(-1) ?? name).replace(/^a(general_)/, "$1");
+  // Generic tasks of the REST API: the verb is the useful part.
+  const generic: Record<string, string> = {
+    general_create: "Create",
+    general_update: "Update",
+    general_delete: "Delete",
+    general_multi_delete: "Delete",
+  };
+  const text = generic[last] ?? last.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 export function contentSummary(summary: unknown): {added: number; removed: number; present: number} {
@@ -214,15 +222,17 @@ export function fieldLabel(name: string): string {
     ca_cert: "CA certificate",
     tls_validation: "TLS validation",
   };
-  return special[name] ?? titleize(name);
+  // `latest_version_href` → "Latest version": the value is shown as a link anyway.
+  return special[name] ?? titleize(name.replace(/_href$/, ""));
 }
 
-export const TASK_COLORS: Record<string, "default" | "accent" | "success" | "warning" | "danger"> = {
+/** Badge variant of a task state. */
+export const TASK_COLORS: Record<string, "secondary" | "info" | "success" | "warning" | "destructive"> = {
   completed: "success",
-  running: "accent",
-  waiting: "default",
-  failed: "danger",
+  running: "info",
+  waiting: "secondary",
+  failed: "destructive",
   canceled: "warning",
   canceling: "warning",
-  skipped: "default",
+  skipped: "secondary",
 };

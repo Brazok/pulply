@@ -1,7 +1,11 @@
-import {Avatar, Card, Chip, SearchField} from "@heroui/react";
+import {Search} from "lucide-react";
 import {useMemo, useState} from "react";
 
 import {PageHeader} from "../components/PageHeader";
+import {Avatar, AvatarFallback} from "../components/ui/avatar";
+import {Badge} from "../components/ui/badge";
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "../components/ui/card";
+import {InputGroup, InputGroupAddon, InputGroupInput} from "../components/ui/input-group";
 import {HrefLink} from "../components/values";
 import type {Json} from "../lib/api";
 import {base} from "../lib/routes";
@@ -23,52 +27,45 @@ export function MePage() {
     <div className="flex flex-col gap-6">
       <PageHeader crumbs={[{label: "Home", to: base(ctx)}, {label: "My account"}]} title="My account" />
       <Card>
-        <Card.Content className="flex flex-row items-center gap-4">
-          <Avatar size="lg" variant="soft">
-            <Avatar.Fallback>{(info.username ?? "?").slice(0, 2).toUpperCase()}</Avatar.Fallback>
+        <CardContent className="flex flex-row items-center gap-4">
+          <Avatar className="size-12">
+            <AvatarFallback className="bg-primary/10 text-primary">{(info.username ?? "?").slice(0, 2).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col gap-1">
             <span className="text-lg font-semibold">{info.username ?? "anonymous"}</span>
-            <span className="text-sm text-muted">
+            <span className="text-sm text-muted-foreground">
               {info.base_url} · context {ctx}
             </span>
             {href && <HrefLink href={href} label="Open my user" />}
           </div>
           <div className="ms-auto flex gap-2">
-            {info.readonly && (
-              <Chip color="warning" variant="soft">
-                read-only
-              </Chip>
-            )}
-            <Chip color={info.access === "all" ? "success" : "accent"} variant="soft">
-              access: {info.access}
-            </Chip>
+            {info.readonly && <Badge variant="warning">read-only</Badge>}
+            <Badge variant={info.access === "all" ? "success" : "info"}>access: {info.access}</Badge>
           </div>
-        </Card.Content>
+        </CardContent>
       </Card>
       <Card>
-        <Card.Header>
-          <Card.Title>Permissions</Card.Title>
-          <Card.Description>{ACCESS[info.access]}</Card.Description>
-        </Card.Header>
+        <CardHeader>
+          <CardTitle>Permissions</CardTitle>
+          <CardDescription>{ACCESS[info.access]}</CardDescription>
+        </CardHeader>
         {info.access === "limited" && (
-          <Card.Content className="flex flex-col gap-3">
-            <SearchField aria-label="Filter permissions" className="max-w-sm" value={q} onChange={setQ}>
-              <SearchField.Group>
-                <SearchField.SearchIcon />
-                <SearchField.Input placeholder="Filter…" />
-                <SearchField.ClearButton />
-              </SearchField.Group>
-            </SearchField>
+          <CardContent className="flex flex-col gap-3">
+            <InputGroup className="max-w-sm">
+              <InputGroupAddon>
+                <Search />
+              </InputGroupAddon>
+              <InputGroupInput aria-label="Filter permissions" placeholder="Filter…" type="search" value={q} onChange={(e) => setQ(e.target.value)} />
+            </InputGroup>
             <div className="flex flex-wrap gap-1.5">
               {perms.map((p) => (
-                <Chip key={p} size="sm" variant="secondary">
+                <Badge key={p} variant="secondary">
                   {p}
-                </Chip>
+                </Badge>
               ))}
-              {!perms.length && <span className="text-sm text-muted">No global permission.</span>}
+              {!perms.length && <span className="text-sm text-muted-foreground">No global permission.</span>}
             </div>
-          </Card.Content>
+          </CardContent>
         )}
       </Card>
     </div>

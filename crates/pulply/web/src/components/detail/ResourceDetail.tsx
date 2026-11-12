@@ -1,26 +1,17 @@
 // Detail page of any resource: workflow actions, generic actions menu, tabs for the
 // overview, content, nested collections, relations, roles and raw JSON.
 
-import {
-  ArrowRotateLeft,
-  ArrowsRotateRight,
-  CloudArrowUpIn,
-  Copy,
-  Ellipsis,
-  Globe,
-  Pencil,
-  Rocket,
-  TrashBin,
-} from "@gravity-ui/icons";
-import {Button, Card, Chip, Dropdown, Header, Label, Separator, Spinner, Tabs, Tooltip, toast} from "@heroui/react";
 import {useQueryClient} from "@tanstack/react-query";
+import {Copy, Ellipsis, Globe, Pencil, RefreshCw, Rocket, Trash2, Undo2, CloudUpload} from "lucide-react";
 import {type ReactNode, useState} from "react";
 import {useNavigate} from "react-router";
+import {toast} from "sonner";
 
 import type {Json} from "../../lib/api";
 import {usageLines} from "../../lib/columns";
 import {displayName, fieldLabel, pluginLabel, singular, titleize, typeLabel, typeTitle} from "../../lib/format";
 import {type Action, type ResourceType, versionNumber, versionRepository} from "../../lib/registry";
+import {useMode} from "../../lib/mode";
 import {base, itemUrl, listUrl} from "../../lib/routes";
 import {errorText, usePulp, useSession} from "../../lib/session";
 import {ConfirmDialog, ResultDialog} from "../dialogs";
@@ -28,6 +19,21 @@ import {type Crumb, PageHeader} from "../PageHeader";
 import {ResourceList} from "../ResourceList";
 import {type FormSpec, FormModal} from "../SchemaForm";
 import {UploadDialog} from "../UploadDialog";
+import {Badge} from "../ui/badge";
+import {Button} from "../ui/button";
+import {Card, CardAction, CardContent, CardHeader, CardTitle} from "../ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {Spinner} from "../ui/spinner";
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "../ui/tabs";
+import {Tooltip, TooltipContent, TooltipTrigger} from "../ui/tooltip";
 import {JsonView, Value} from "../values";
 import {ContentSummary} from "./ContentSummary";
 import {RolesPanel} from "./RolesPanel";
@@ -36,34 +42,47 @@ import {RolesPanel} from "./RolesPanel";
 const DEDICATED = new Set(["sync", "list_roles", "add_role", "remove_role", "my_permissions", "modify"]);
 /** Fields shown in the header instead of the details grid. */
 const HIDDEN = new Set(["pulp_href", "name"]);
+/** Bookkeeping fields hidden in simple mode. */
+const TECHNICAL = new Set(["prn", "pulp_last_updated", "versions_href", "pulp_domain", "hidden_fields", "description"]);
+
+function isEmpty(v: unknown): boolean {
+  if (v === null || v === undefined || v === "") return true;
+  if (Array.isArray(v)) return v.length === 0;
+  return typeof v === "object" && Object.keys(v as object).length === 0;
+}
 
 export function CopyButton({text, label = "Copy"}: {text: string; label?: string}) {
   return (
-    <Tooltip delay={300}>
-      <Button
-        isIconOnly
-        aria-label={label}
-        size="sm"
-        variant="ghost"
-        onPress={async () => {
-          await navigator.clipboard.writeText(text);
-          toast.success("Copied to the clipboard", {timeout: 1500});
-        }}
-      >
-        <Copy />
-      </Button>
-      <Tooltip.Content>{label}</Tooltip.Content>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={label}
+          size="icon-xs"
+          variant="ghost"
+          onClick={async () => {
+            await navigator.clipboard.writeText(text);
+            toast.success("Copied to the clipboard", {duration: 1500});
+          }}
+        >
+          <Copy />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 }
 
-function Details({item}: {item: Json}) {
-  const entries = Object.entries(item).filter(([k]) => !HIDDEN.has(k));
+/** Label / value rows. Simple mode leaves out empty and bookkeeping fields. */
+function Details({item, simple}: {item: Json; simple: boolean}) {
+  const entries = Object.entries(item).filter(
+    ([k, v]) => !HIDDEN.has(k) && !(simple && (TECHNICAL.has(k) || k.endsWith("_prn") || isEmpty(v))),
+  );
+  if (!entries.length) return <p className="text-sm text-muted-foreground">Nothing more to show.</p>;
   return (
-    <dl className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
+    <dl className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
       {entries.map(([k, v]) => (
-        <div key={k} className="flex min-w-0 flex-col gap-1">
-          <dt className="text-xs font-medium uppercase tracking-wide text-muted">{fieldLabel(k)}</dt>
+        <div key={k} className="grid min-w-0 grid-cols-[minmax(7rem,11rem)_1fr] items-baseline gap-4 border-b py-2.5">
+          <dt className="text-sm text-muted-foreground">{fieldLabel(k)}</dt>
           <dd className="min-w-0 text-sm">
             <Value name={k} value={v} />
           </dd>
@@ -76,17 +95,18 @@ function Details({item}: {item: Json}) {
 function Section({title, children, actions}: {title: string; children: ReactNode; actions?: ReactNode}) {
   return (
     <Card>
-      <Card.Header className="flex flex-row items-center justify-between">
-        <Card.Title>{title}</Card.Title>
-        {actions}
-      </Card.Header>
-      <Card.Content>{children}</Card.Content>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {actions && <CardAction>{actions}</CardAction>}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
     </Card>
   );
 }
 
 export function ResourceDetail({href, type}: {href: string; type: ResourceType | undefined}) {
   const {registry, pulp, ctx, info, can, track} = useSession();
+  const {simple} = useMode();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = usePulp(href);
@@ -107,9 +127,9 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
   const [upload, setUpload] = useState(false);
   const [tab, setTab] = useState<string>("overview");
 
-  if (query.isLoading) return <Spinner className="m-10" />;
+  if (query.isLoading) return <Spinner className="m-10 size-6" />;
   if (query.error || !item) {
-    return <div className="rounded-2xl bg-danger/10 p-4 text-sm text-danger">{errorText(query.error ?? "Not found")}</div>;
+    return <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">{errorText(query.error ?? "Not found")}</div>;
   }
 
   const plugin = type?.plugin ?? "core";
@@ -136,7 +156,7 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
       pulp
         .get(`${href}${a.verb}/`)
         .then((value) => setResult({title: `${titleize(a.verb)} · ${name}`, value}))
-        .catch((e) => toast.danger(errorText(e)));
+        .catch((e) => toast.error(errorText(e)));
       return;
     }
     if (writable) {
@@ -254,169 +274,144 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
         actions={
           <>
             {syncAction && allowed("sync") && (
-              <Button onPress={() => openAction(syncAction)}>
-                <ArrowsRotateRight />
+              <Button onClick={() => openAction(syncAction)}>
+                <RefreshCw />
                 Sync
               </Button>
             )}
             {uploadTypes.length > 0 && (
-              <Button variant="secondary" onPress={() => setUpload(true)}>
-                <CloudArrowUpIn />
+              <Button variant="outline" onClick={() => setUpload(true)}>
+                <CloudUpload />
                 Upload
               </Button>
             )}
             {pubType && can("add", pubType) && (
-              <Button variant="secondary" onPress={publish}>
+              <Button variant="outline" onClick={publish}>
                 <Rocket />
                 Publish
               </Button>
             )}
             {distType && can("add", distType) && (
-              <Button variant="secondary" onPress={distribute}>
+              <Button variant="outline" onClick={distribute}>
                 <Globe />
                 Distribute
               </Button>
             )}
             {version !== null && canModify && owningRepo.data && !isLatest && (
-              <Button variant="secondary" onPress={rollback}>
-                <ArrowRotateLeft />
+              <Button variant="outline" onClick={rollback}>
+                <Undo2 />
                 Roll back
               </Button>
             )}
             {canEdit && (
-              <Button variant="secondary" onPress={edit}>
+              <Button variant="outline" onClick={edit}>
                 <Pencil />
                 Edit
               </Button>
             )}
-            <Dropdown>
-              <Button isIconOnly aria-label="More actions" variant="secondary">
-                <Ellipsis />
-              </Button>
-              <Dropdown.Popover placement="bottom end">
-                <Dropdown.Menu
-                  onAction={(key) => {
-                    const k = String(key);
-                    if (k === "copy") void navigator.clipboard.writeText(href).then(() => toast.success("Href copied", {timeout: 1500}));
-                    else if (k === "delete") remove();
-                    else if (k === "refresh") void query.refetch();
-                    else {
-                      const a = otherActions.find((x) => `${x.method}:${x.verb}` === k);
-                      if (a) openAction(a);
-                    }
-                  }}
-                >
-                  {postActions.length > 0 ? (
-                    <Dropdown.Section>
-                      <Header>Actions</Header>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button aria-label="More actions" size="icon" variant="outline">
+                  <Ellipsis />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-48">
+                {!simple && postActions.length > 0 && (
+                  <>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       {postActions.map((a) => (
-                        <Dropdown.Item key={a.verb} id={`POST:${a.verb}`} textValue={a.verb}>
-                          <Label>{titleize(a.verb)}</Label>
-                        </Dropdown.Item>
+                        <DropdownMenuItem key={a.verb} onSelect={() => openAction(a)}>
+                          {titleize(a.verb)}
+                        </DropdownMenuItem>
                       ))}
-                    </Dropdown.Section>
-                  ) : null}
-                  {getActions.length > 0 ? (
-                    <Dropdown.Section>
-                      <Header>Reports</Header>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {!simple && getActions.length > 0 && (
+                  <>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Reports</DropdownMenuLabel>
                       {getActions.map((a) => (
-                        <Dropdown.Item key={a.verb} id={`GET:${a.verb}`} textValue={a.verb}>
-                          <Label>{titleize(a.verb)}</Label>
-                        </Dropdown.Item>
+                        <DropdownMenuItem key={a.verb} onSelect={() => openAction(a)}>
+                          {titleize(a.verb)}
+                        </DropdownMenuItem>
                       ))}
-                    </Dropdown.Section>
-                  ) : null}
-                  <Dropdown.Section>
-                    <Header>Resource</Header>
-                    <Dropdown.Item id="refresh" textValue="Refresh">
-                      <Label>Refresh</Label>
-                    </Dropdown.Item>
-                    <Dropdown.Item id="copy" textValue="Copy href">
-                      <Label>Copy href</Label>
-                    </Dropdown.Item>
-                  </Dropdown.Section>
-                  {canDelete ? (
-                    <>
-                      <Separator />
-                      <Dropdown.Item id="delete" textValue="Delete" variant="danger">
-                        <TrashBin className="size-4" />
-                        <Label>Delete</Label>
-                      </Dropdown.Item>
-                    </>
-                  ) : null}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Resource</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => void query.refetch()}>
+                    <RefreshCw />
+                    Refresh
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => void navigator.clipboard.writeText(href).then(() => toast.success("Href copied", {duration: 1500}))}
+                  >
+                    <Copy />
+                    Copy href
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                {canDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onSelect={remove}>
+                      <Trash2 />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         }
         chips={
           type && (
             <>
-              {plugin !== "core" && (
-                <Chip size="sm" variant="soft">
-                  {pluginLabel(plugin)}
-                </Chip>
-              )}
-              <Chip size="sm" variant="secondary">
-                {singular(type.parent ? titleize(type.name) : typeLabel(type))}
-              </Chip>
+              {plugin !== "core" && <Badge variant="secondary">{pluginLabel(plugin)}</Badge>}
+              <Badge variant="outline">{singular(type.parent ? titleize(type.name) : typeLabel(type))}</Badge>
             </>
           )
         }
         crumbs={crumbs}
         subtitle={
-          <span className="inline-flex items-center gap-1 font-mono text-xs">
-            {href}
-            <CopyButton label="Copy href" text={href} />
-          </span>
+          simple ? (
+            typeof item.description === "string" && item.description ? item.description : undefined
+          ) : (
+            <span className="inline-flex items-center gap-1 font-mono text-xs">
+              {href}
+              <CopyButton label="Copy href" text={href} />
+            </span>
+          )
         }
         title={name}
       />
 
-      <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-        <Tabs.ListContainer>
-          <Tabs.List aria-label="Sections" className="overflow-x-auto">
-            <Tabs.Tab id="overview">
-              Overview
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            {versionHref && genericContent && (
-              <Tabs.Tab id="content">
-                Content
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            )}
+      <Tabs value={simple && (tab === "roles" || tab === "json") ? "overview" : tab} onValueChange={setTab}>
+        <div className="overflow-x-auto border-b">
+          <TabsList aria-label="Sections" variant="line">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            {versionHref && genericContent && <TabsTrigger value="content">Content</TabsTrigger>}
             {children.map((c) => (
-              <Tabs.Tab key={c.id} id={`child:${c.id}`}>
+              <TabsTrigger key={c.id} value={`child:${c.id}`}>
                 {titleize(c.name)}
-                <Tabs.Indicator />
-              </Tabs.Tab>
+              </TabsTrigger>
             ))}
-            {isRepository && (
-              <Tabs.Tab id="relations">
-                Publishing
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            )}
-            {hasRoles && (
-              <Tabs.Tab id="roles">
-                Roles
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            )}
-            <Tabs.Tab id="json">
-              JSON
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
+            {isRepository && <TabsTrigger value="relations">Publishing</TabsTrigger>}
+            {!simple && hasRoles && <TabsTrigger value="roles">Roles</TabsTrigger>}
+            {!simple && <TabsTrigger value="json">JSON</TabsTrigger>}
+          </TabsList>
+        </div>
 
-        <Tabs.Panel className="flex flex-col gap-4 pt-4" id="overview">
+        <TabsContent className="flex flex-col gap-4 pt-2" value="overview">
           {usage.length > 0 && (
             <Section title="How to use it">
               <ul className="flex flex-col gap-2">
                 {usage.map((line) => (
-                  <li key={line} className="flex items-start gap-2 rounded-xl bg-default/50 px-3 py-2">
+                  <li key={line} className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2">
                     <pre className="flex-1 overflow-x-auto whitespace-pre-wrap font-mono text-xs leading-5">{line}</pre>
                     <CopyButton text={line} />
                   </li>
@@ -430,12 +425,12 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
             </Section>
           )}
           <Section title="Details">
-            <Details item={item} />
+            <Details item={item} simple={simple} />
           </Section>
-        </Tabs.Panel>
+        </TabsContent>
 
         {versionHref && genericContent && (
-          <Tabs.Panel className="pt-4" id="content">
+          <TabsContent className="pt-2" value="content">
             <ResourceList
               embedded
               baseQuery={{repository_version: versionHref}}
@@ -443,15 +438,15 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
               type={genericContent}
               versionContext={repoForModify ? {repository: repoForModify, version: versionHref} : undefined}
             />
-          </Tabs.Panel>
+          </TabsContent>
         )}
         {children.map((c) => (
-          <Tabs.Panel key={c.id} className="pt-4" id={`child:${c.id}`}>
+          <TabsContent key={c.id} className="pt-2" value={`child:${c.id}`}>
             <ResourceList embedded={false} owner={href} path={`${href}${c.parent?.[1] ?? `${c.name}/`}`} type={c} />
-          </Tabs.Panel>
+          </TabsContent>
         ))}
         {isRepository && (
-          <Tabs.Panel className="flex flex-col gap-6 pt-4" id="relations">
+          <TabsContent className="flex flex-col gap-6 pt-2" value="relations">
             {pubsType && (
               <div className="flex flex-col gap-2">
                 <h2 className="text-lg font-semibold">Publications</h2>
@@ -464,16 +459,16 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
                 <ResourceList embedded baseQuery={{repository: href}} path={distsType.list_path!} type={distsType} />
               </div>
             )}
-          </Tabs.Panel>
+          </TabsContent>
         )}
         {hasRoles && (
-          <Tabs.Panel className="pt-4" id="roles">
+          <TabsContent className="pt-2" value="roles">
             <RolesPanel href={href} name={name} />
-          </Tabs.Panel>
+          </TabsContent>
         )}
-        <Tabs.Panel className="pt-4" id="json">
+        <TabsContent className="pt-2" value="json">
           <JsonView value={item} />
-        </Tabs.Panel>
+        </TabsContent>
       </Tabs>
 
       <FormModal spec={form} onClose={() => setForm(null)} />

@@ -176,13 +176,15 @@ pulply serve --context lab --open    # opens the browser on context lab
 pulply serve --readonly              # no modification possible from the interface
 ```
 
-The interface is built with [HeroUI](https://heroui.com) and embedded in the binary. It uses the same
+The interface is built with [shadcn/ui](https://ui.shadcn.com) and embedded in the binary. It uses the same
 configuration and contexts as the TUI, and the same discovery of the server's OpenAPI schema: every
 plugin's resources can be listed (search, filters, sorting, pagination), created, edited and
 deleted; repositories are synced, published, distributed and rolled back from their page; content
 is uploaded from the browser (chunked) and added to or removed from repositories; tasks are followed
 live; role assignments, global operations (orphan cleanup, repair, reclaim, purge, copy, prune…) and
-every plugin action are available. `Ctrl-K` / `⌘K` jumps to any resource type.
+every plugin action are available. `Ctrl-K` / `⌘K` jumps to any resource type. The **Simple** mode
+(the default, top right) keeps the repositories, remotes, distributions and everyday actions;
+**Advanced** shows every resource type, field and operation.
 
 The pulply server keeps the Pulp credentials (asked once in the browser when they are not in the
 configuration) and relays the browser's requests to Pulp. Every API request needs an access token:
@@ -203,9 +205,10 @@ make pulp-up    # local Pulp on :8080 (admin / password)
 make serve ARGS="--context lab"
 ```
 
-The web interface lives in `crates/pulply/web` (React, Vite, HeroUI, Tailwind CSS, TanStack Query).
+The web interface lives in `crates/pulply/web` (React, Vite, shadcn/ui on Radix, Tailwind CSS, TanStack Query).
 `cargo build` rebuilds it (`npm ci` + `npm run build`, Node 20.19+) when its sources changed, and
-warns instead of failing without npm (`PULPLY_SKIP_WEB=1` skips it). To work on it with hot reload:
+warns instead of failing without npm (`PULPLY_SKIP_WEB=1` skips it). The UI components are shadcn/ui
+sources in `src/components/ui` (`npx shadcn add <component>` adds one). To work on it with hot reload:
 
 ```sh
 cargo run -- serve --token dev                      # API on 127.0.0.1:8484

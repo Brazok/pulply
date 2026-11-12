@@ -1,10 +1,10 @@
-import {Chip} from "@heroui/react";
 import {useCallback} from "react";
 import {useParams, useSearchParams} from "react-router";
 
 import {ResourceList} from "../components/ResourceList";
 import {PageHeader} from "../components/PageHeader";
 import {ErrorScreen} from "../components/screens";
+import {Badge} from "../components/ui/badge";
 import {pluginLabel, typeTitle} from "../lib/format";
 import {base} from "../lib/routes";
 import {useSession} from "../lib/session";
@@ -50,9 +50,7 @@ export function ListPage() {
         <PageHeader
           chips={
             type.plugin !== "core" && (
-              <Chip size="sm" variant="soft">
-                {pluginLabel(type.plugin)}
-              </Chip>
+<Badge variant="secondary">{pluginLabel(type.plugin)}</Badge>
             )
           }
           crumbs={[{label: "Home", to: base(ctx)}, {label: typeTitle(type)}]}

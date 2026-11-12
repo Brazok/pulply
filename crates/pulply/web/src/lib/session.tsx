@@ -1,7 +1,7 @@
 // Connected context: session info, registry, Pulp client, permissions and the tasks
 // launched from the interface (followed until they finish).
 
-import {toast} from "@heroui/react";
+import {toast} from "sonner";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react";
 
@@ -130,7 +130,7 @@ export function SessionProvider(props: {
     const href = taskOf(response);
     if (!href) return false;
     setTracked((ts) => [...ts.filter((t) => t.href !== href), {href, label, state: "waiting", onDone}]);
-    toast(label, {description: "Task started", timeout: 2500});
+    toast(label, {description: "Task started", duration: 2500});
     return true;
   }, []);
 
@@ -169,7 +169,7 @@ export function SessionProvider(props: {
         if (state === "completed") toast.success(`${t.label} completed`, {description: taskName(task.name)});
         else {
           const err = task.error as Json | undefined;
-          toast.danger(`${t.label} ${state}`, {description: String(err?.description ?? ""), timeout: 10_000});
+          toast.error(`${t.label} ${state}`, {description: String(err?.description ?? ""), duration: 10_000});
         }
         t.onDone?.(task);
       }

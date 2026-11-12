@@ -4,13 +4,14 @@
 
 ### Added
 
-- `pulply serve`: web interface built with HeroUI and embedded in the binary. Dashboard, every
+- `pulply serve`: web interface built with shadcn/ui and embedded in the binary. Dashboard, every
   resource type of every plugin (search, filters, sorting, pagination, bulk actions), schema-driven
   create/edit forms with resource pickers and file fields, sync / publish / distribute / rollback
   workflows, chunked uploads from the browser, add/remove content, live task progress, role
   assignments, global operations and plugin actions, command palette (`Ctrl-K`), light and dark
-  themes. The server keeps the Pulp credentials and relays requests behind an access token
-  (embedded in the page on loopback addresses, printed at startup otherwise), honoring `--readonly`.
+  themes, and a simple mode (the default) next to the advanced one. The server keeps the Pulp
+  credentials and relays requests behind an access token (embedded in the page on loopback
+  addresses, printed at startup otherwise), honoring `--readonly`.
 - `:config` lists the configuration files (`config.toml`, hotkeys, aliases, views, plugins, skins,
   pulp-cli's `cli.toml`) and edits them in `$EDITOR`; a missing file starts from the defaults. The
   configuration is reloaded on save, and an invalid edit is rolled back and reopened with the error.

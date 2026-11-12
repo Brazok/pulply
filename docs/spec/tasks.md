@@ -64,7 +64,7 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 - [x] `pulply serve` : serveur axum embarqué, proxy authentifié vers Pulp (identifiants côté serveur, mot de passe demandé dans le navigateur si absent), registre OpenAPI exporté en JSON, SPA embarquée (`rust-embed`, construite par `build.rs`).
 - [x] Sécurité : jeton d'accès sur toute l'API (dans la page en loopback avec contrôle du `Host`, affiché au démarrage sinon), `--readonly` appliqué par le proxy.
-- [x] SPA React + HeroUI v3 : tableau de bord, navigation par plugin et palette `Ctrl-K`, listes (recherche, filtres, tri, pagination, actions groupées), détail (onglets contenu, versions, publication, rôles, JSON), formulaires générés depuis le schéma (sélecteurs de ressources, champs fichier), sync / publish / distribute / rollback, upload par morceaux, ajout et retrait de contenu, suivi des tâches, opérations globales, thème clair/sombre, mobile.
+- [x] SPA React + shadcn/ui (Radix) : tableau de bord, navigation par plugin et palette `Ctrl-K`, listes (recherche, filtres, tri, pagination, actions groupées), détail (onglets contenu, versions, publication, rôles, JSON), formulaires générés depuis le schéma (sélecteurs de ressources, champs fichier), sync / publish / distribute / rollback, upload par morceaux, ajout et retrait de contenu, suivi des tâches, opérations globales, thème clair/sombre, modes simple (par défaut) et avancé, mobile.
 - [x] Testée de bout en bout contre un conteneur Pulp (création, upload 7 Mo vérifié par sha256, sync distante, publication, distribution, rollback, suppression, mot de passe, lecture seule, mode jeton).
 
 ## Correctifs

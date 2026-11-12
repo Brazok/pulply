@@ -1,12 +1,15 @@
 // Role assignments on one object (`list_roles/`), with add/remove (`add_role/`, `remove_role/`).
 
-import {Plus, TrashBin} from "@gravity-ui/icons";
-import {Button, Chip, EmptyState, Spinner, Table} from "@heroui/react";
+import {Plus, Trash2} from "lucide-react";
 import {useState} from "react";
 
 import {errorText, usePulp, useSession} from "../../lib/session";
 import {ConfirmDialog} from "../dialogs";
 import {type FormSpec, FormModal} from "../SchemaForm";
+import {Badge} from "../ui/badge";
+import {Button} from "../ui/button";
+import {Spinner} from "../ui/spinner";
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "../ui/table";
 
 interface Assignment {
   role: string;
@@ -24,14 +27,14 @@ export function RolesPanel({href, name}: {href: string; name: string}) {
   const [removing, setRemoving] = useState<Assignment | null>(null);
 
   if (roles.isLoading) return <Spinner />;
-  if (roles.error) return <p className="text-sm text-danger">{errorText(roles.error)}</p>;
+  if (roles.error) return <p className="text-sm text-destructive">{errorText(roles.error)}</p>;
   const list = roles.data?.roles ?? [];
   return (
     <div className="flex flex-col gap-3">
       {add && !info.readonly && (
         <div className="flex justify-end">
           <Button
-            onPress={() =>
+            onClick={() =>
               setForm({
                 title: `Grant a role on ${name}`,
                 label: `Grant role on ${name}`,
@@ -49,54 +52,57 @@ export function RolesPanel({href, name}: {href: string; name: string}) {
           </Button>
         </div>
       )}
-      <Table>
-        <Table.ScrollContainer>
-          <Table.Content aria-label="Role assignments">
-            <Table.Header>
-              <Table.Column isRowHeader>Role</Table.Column>
-              <Table.Column>Users</Table.Column>
-              <Table.Column>Groups</Table.Column>
-              <Table.Column className="w-16"> </Table.Column>
-            </Table.Header>
-            <Table.Body
-              renderEmptyState={() => (
-                <EmptyState className="py-8 text-center text-sm text-muted">No role is assigned on this object.</EmptyState>
-              )}
-            >
-              {list.map((r) => (
-                <Table.Row key={r.role} id={r.role}>
-                  <Table.Cell className="font-medium">{r.role}</Table.Cell>
-                  <Table.Cell>
-                    <div className="flex flex-wrap gap-1">
-                      {r.users.map((u) => (
-                        <Chip key={u} size="sm" variant="secondary">
-                          {u}
-                        </Chip>
-                      ))}
-                    </div>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <div className="flex flex-wrap gap-1">
-                      {r.groups.map((g) => (
-                        <Chip key={g} size="sm" variant="soft">
-                          {g}
-                        </Chip>
-                      ))}
-                    </div>
-                  </Table.Cell>
-                  <Table.Cell>
-                    {removeAction && !info.readonly && (
-                      <Button isIconOnly aria-label={`Remove ${r.role}`} size="sm" variant="ghost" onPress={() => setRemoving(r)}>
-                        <TrashBin />
-                      </Button>
-                    )}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
-      </Table>
+      <div className="rounded-lg border">
+        <Table aria-label="Role assignments">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Role</TableHead>
+              <TableHead>Users</TableHead>
+              <TableHead>Groups</TableHead>
+              <TableHead className="w-16" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {!list.length && (
+              <TableRow>
+                <TableCell className="py-8 text-center text-muted-foreground" colSpan={4}>
+                  No role is assigned on this object.
+                </TableCell>
+              </TableRow>
+            )}
+            {list.map((r) => (
+              <TableRow key={r.role}>
+                <TableCell className="font-medium">{r.role}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {r.users.map((u) => (
+                      <Badge key={u} variant="secondary">
+                        {u}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {r.groups.map((g) => (
+                      <Badge key={g} variant="outline">
+                        {g}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {removeAction && !info.readonly && (
+                    <Button aria-label={`Remove ${r.role}`} size="icon-sm" variant="ghost" onClick={() => setRemoving(r)}>
+                      <Trash2 />
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       <FormModal spec={form} onClose={() => setForm(null)} />
       <ConfirmDialog
         danger

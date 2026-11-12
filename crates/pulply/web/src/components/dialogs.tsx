@@ -1,7 +1,20 @@
-import {AlertDialog, Button, Modal, Spinner} from "@heroui/react";
+import {CircleAlert, Info} from "lucide-react";
 import {type ReactNode, useState} from "react";
 
 import {errorText} from "../lib/session";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import {Button} from "./ui/button";
+import {Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "./ui/dialog";
+import {Spinner} from "./ui/spinner";
 import {JsonView} from "./values";
 
 export interface ConfirmProps {
@@ -31,35 +44,37 @@ export function ConfirmDialog({isOpen, onOpenChange, title, children, confirmLab
     }
   };
   return (
-    <AlertDialog.Backdrop
-      isOpen={isOpen}
+    <AlertDialog
+      open={isOpen}
       onOpenChange={(open) => {
+        if (pending) return;
         if (!open) setError(null);
         onOpenChange(open);
       }}
     >
-      <AlertDialog.Container>
-        <AlertDialog.Dialog className="sm:max-w-[440px]">
-          <AlertDialog.Header>
-            <AlertDialog.Icon status={danger ? "danger" : "accent"} />
-            <AlertDialog.Heading>{title}</AlertDialog.Heading>
-          </AlertDialog.Header>
-          <AlertDialog.Body>
-            {children}
-            {error && <p className="text-danger text-sm mt-2">{error}</p>}
-          </AlertDialog.Body>
-          <AlertDialog.Footer>
-            <Button slot="close" variant="tertiary">
-              Cancel
-            </Button>
-            <Button isPending={pending} variant={danger ? "danger" : "primary"} onPress={run}>
-              {pending && <Spinner color="current" size="sm" />}
-              {confirmLabel ?? "Confirm"}
-            </Button>
-          </AlertDialog.Footer>
-        </AlertDialog.Dialog>
-      </AlertDialog.Container>
-    </AlertDialog.Backdrop>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogMedia className={danger ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
+            {danger ? <CircleAlert /> : <Info />}
+          </AlertDialogMedia>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div>
+              {children}
+              {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          {/* A plain button: AlertDialogAction would close the dialog before the action ends. */}
+          <Button disabled={pending} variant={danger ? "destructive" : "default"} onClick={() => void run()}>
+            {pending && <Spinner />}
+            {confirmLabel ?? "Confirm"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -74,23 +89,20 @@ export function ResultDialog({
   onClose: () => void;
 }) {
   return (
-    <Modal.Backdrop isOpen={value !== null} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Container size="lg">
-        <Modal.Dialog>
-          <Modal.CloseTrigger />
-          <Modal.Header>
-            <Modal.Heading>{title}</Modal.Heading>
-          </Modal.Header>
-          <Modal.Body>
-            <JsonView value={value} />
-          </Modal.Body>
-          <Modal.Footer>
-            <Button slot="close" variant="secondary">
-              Close
-            </Button>
-          </Modal.Footer>
-        </Modal.Dialog>
-      </Modal.Container>
-    </Modal.Backdrop>
+    <Dialog open={value !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="min-w-0">
+          <JsonView value={value} />
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Close</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

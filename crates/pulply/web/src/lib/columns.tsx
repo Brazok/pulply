@@ -1,9 +1,9 @@
 // Table columns per resource type: presets for core and plugin types, completed from
 // the read schema (same rules as the terminal UI).
 
-import {Chip} from "@heroui/react";
 import type {ReactNode} from "react";
 
+import {Badge} from "../components/ui/badge";
 import {HrefLink, PrnLink, StateChip, TimeAgo, Value} from "../components/values";
 import type {Json} from "./api";
 import {bytes, contentSummary, duration, fieldLabel, nevra, scalarText, taskName, typeTitle} from "./format";
@@ -81,7 +81,7 @@ function join(header: string, fs: string[], sep: string, primary = false): Colum
 }
 
 function Muted() {
-  return <span className="text-muted">—</span>;
+  return <span className="text-muted-foreground">—</span>;
 }
 
 const versionOf = (f: string): Column => ({
@@ -99,8 +99,8 @@ const summary: Column = {
     const s = contentSummary(i.content_summary);
     return (
       <span className="font-mono text-xs">
-        <span className="text-success">+{s.added}</span> <span className="text-danger">−{s.removed}</span>{" "}
-        <span className="text-muted">={s.present}</span>
+        <span className="text-success">+{s.added}</span> <span className="text-destructive">−{s.removed}</span>{" "}
+        <span className="text-muted-foreground">={s.present}</span>
       </span>
     );
   },
@@ -247,7 +247,7 @@ function typeColumn(reg: Registry): Column {
     fields: ["pulp_href"],
     render: (i) => {
       const t = reg.typeForHref(str(i.pulp_href));
-      return t ? <Chip size="sm" variant="soft">{typeTitle(t)}</Chip> : <Muted />;
+      return t ? <Badge variant="secondary">{typeTitle(t)}</Badge> : <Muted />;
     },
   };
 }

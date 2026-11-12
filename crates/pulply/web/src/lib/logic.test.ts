@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest";
 
 import {type FieldDef, buildBody} from "../components/SchemaForm";
 import {hrefPath} from "./api";
+import {fieldLabel, taskName} from "./format";
 import {Registry, type ResourceType, versionNumber, versionRepository} from "./registry";
 
 function type(id: string, list_path: string | null, extra: Partial<ResourceType> = {}): ResourceType {
@@ -96,5 +97,17 @@ describe("form bodies", () => {
       files: {file},
     });
     expect(buildBody(fields, {values: {name: "iso", pulp_labels: "{"}, files: {}}, null)).toHaveProperty("errors.pulp_labels");
+  });
+});
+
+describe("labels", () => {
+  it("names tasks by their verb", () => {
+    expect(taskName("pulpcore.app.tasks.base.general_update")).toBe("Update");
+    expect(taskName("pulpcore.app.tasks.base.ageneral_create")).toBe("Create");
+    expect(taskName("pulpcore.app.tasks.orphan.orphan_cleanup")).toBe("Orphan cleanup");
+  });
+  it("drops the href suffix of field labels", () => {
+    expect(fieldLabel("latest_version_href")).toBe("Latest version");
+    expect(fieldLabel("pulp_href")).toBe("Href");
   });
 });

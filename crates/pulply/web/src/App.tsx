@@ -1,22 +1,22 @@
-import {RouterProvider, Toast} from "@heroui/react";
-import {useHref, useNavigate, Navigate, Route, Routes} from "react-router";
+import {Navigate, Route, Routes} from "react-router";
 
 import {ContextRoot} from "./ContextRoot";
 import {Center, ErrorScreen, TokenScreen} from "./components/screens";
+import {Toaster} from "./components/ui/sonner";
+import {TooltipProvider} from "./components/ui/tooltip";
 import {ApiError, hasToken} from "./lib/api";
 import {useContexts} from "./lib/session";
 
 export function App() {
-  const navigate = useNavigate();
   return (
-    <RouterProvider navigate={navigate} useHref={useHref}>
-      <Toast.Provider placement="bottom end" />
+    <TooltipProvider delayDuration={300}>
+      <Toaster position="bottom-right" />
       <Routes>
         <Route element={<Home />} path="/" />
         <Route element={<ContextRoot />} path="/c/:ctx/*" />
         <Route element={<Navigate replace to="/" />} path="*" />
       </Routes>
-    </RouterProvider>
+    </TooltipProvider>
   );
 }
 

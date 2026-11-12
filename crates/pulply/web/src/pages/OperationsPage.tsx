@@ -1,11 +1,14 @@
 // Server-wide operations (`orphans/cleanup/`, `repair/`, `tasks/purge/`, `rpm/copy/`…).
 
-import {Button, Card, Chip, Skeleton} from "@heroui/react";
 import {useQuery} from "@tanstack/react-query";
 import {useState} from "react";
 
 import {PageHeader} from "../components/PageHeader";
 import {type FormSpec, FormModal} from "../components/SchemaForm";
+import {Badge} from "../components/ui/badge";
+import {Button} from "../components/ui/button";
+import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from "../components/ui/card";
+import {Skeleton} from "../components/ui/skeleton";
 import {pluginLabel, titleize} from "../lib/format";
 import type {GlobalOperation} from "../lib/registry";
 import {base} from "../lib/routes";
@@ -74,7 +77,7 @@ export function OperationsPage() {
       danger: known?.danger,
       showResult: true,
       submitLabel: "Run",
-      intro: known ? <p className="text-sm text-muted">{known.description}</p> : undefined,
+      intro: known ? <p className="text-sm text-muted-foreground">{known.description}</p> : undefined,
     });
   };
 
@@ -91,32 +94,28 @@ export function OperationsPage() {
           const p = plugin(rel, plugins);
           return (
             <Card key={rel} className="flex flex-col">
-              <Card.Header>
+              <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Card.Title>{title(rel, op)}</Card.Title>
-                  {p !== "core" && (
-                    <Chip size="sm" variant="soft">
-                      {pluginLabel(p)}
-                    </Chip>
-                  )}
+                  <CardTitle>{title(rel, op)}</CardTitle>
+                  {p !== "core" && <Badge variant="secondary">{pluginLabel(p)}</Badge>}
                 </div>
-                <Card.Description>{known?.description ?? <span className="font-mono text-xs">{rel}</span>}</Card.Description>
-              </Card.Header>
-              <Card.Content className="flex-1">
+                <CardDescription>{known?.description ?? <span className="font-mono text-xs">{rel}</span>}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1">
                 {rel === "orphans/cleanup/" &&
                   (orphans.data === undefined ? (
-                    <Skeleton className="h-5 w-40 rounded-lg" />
+                    <Skeleton className="h-5 w-40" />
                   ) : (
                     <p className="text-sm">
                       <span className="font-semibold">{orphans.data.toLocaleString()}</span> orphaned content units right now
                     </p>
                   ))}
-              </Card.Content>
-              <Card.Footer>
-                <Button isDisabled={info.readonly} variant={known?.danger ? "danger-soft" : "secondary"} onPress={() => open(rel, op)}>
+              </CardContent>
+              <CardFooter>
+                <Button disabled={info.readonly} variant={known?.danger ? "destructive" : "outline"} onClick={() => open(rel, op)}>
                   Run…
                 </Button>
-              </Card.Footer>
+              </CardFooter>
             </Card>
           );
         })}

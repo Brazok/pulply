@@ -11,6 +11,10 @@ export interface NavItem {
   to: string;
   /** Secondary text for search results. */
   hint?: string;
+  /** Category of the listed type (plugin groups). */
+  category?: string;
+  /** Variant of a type (`Remotes · Git`), as opposed to the plugin's main one. */
+  variant?: boolean;
 }
 
 export interface NavGroup {
@@ -42,7 +46,25 @@ function order(t: ResourceType): number {
 }
 
 function item(ctx: string, t: ResourceType, label = typeLabel(t)): NavItem {
-  return {id: t.id, label, to: listUrl(ctx, t.id)};
+  return {id: t.id, label, to: listUrl(ctx, t.id), category: t.category, variant: label.includes(" · ")};
+}
+
+/** Categories of a plugin listed in simple mode. */
+const SIMPLE_CATEGORIES = ["repositories", "remotes", "distributions"];
+
+/**
+ * Simple mode: dashboard and tasks, then the repositories, remotes and distributions of each
+ * plugin (main types only). Content is reached from repositories; the rest is in advanced mode.
+ */
+export function simplifyNav(nav: ReturnType<typeof buildNav>): ReturnType<typeof buildNav> {
+  const plugins = nav.plugins
+    .map((g) => {
+      const kept = g.items.filter((i) => SIMPLE_CATEGORIES.includes(i.category ?? ""));
+      const items = kept.filter((i) => !i.variant || !kept.some((o) => o.category === i.category && !o.variant));
+      return {...g, items};
+    })
+    .filter((g) => g.items.length > 0);
+  return {overview: nav.overview.filter((i) => i.id !== "operations"), plugins, platform: [], admin: []};
 }
 
 export function buildNav(reg: Registry, ctx: string) {
