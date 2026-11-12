@@ -16,7 +16,7 @@ export PULPLY_SKIP_WEB := 1
 
 .DEFAULT_GOAL := all
 .PHONY: all help web-deps web web-test web-check build release test test-rust fmt fmt-check lint check \
-        run serve web-dev pulp pulp-up pulp-down package deb rpm image clean distclean
+        run serve serve-lan web-dev pulp pulp-up pulp-down package deb rpm image clean distclean
 
 all: check release ## Everything: formatting, lint, tests (Rust + web), release build
 
@@ -71,6 +71,9 @@ run: build ## Terminal UI (ARGS="--context lab")
 
 serve: build ## Web interface on $(LISTEN) (ARGS="--context lab --open")
 	$(CARGO) run -p pulply -- serve --listen $(LISTEN) $(ARGS)
+
+serve-lan: LISTEN = 0.0.0.0:$(or $(PORT),8484)
+serve-lan: serve ## Web interface on the network, token required (PORT=8484, ARGS="--token …")
 
 web-dev: web-deps ## Vite with hot reload, proxying to `make serve ARGS="--token dev"`
 	cd $(WEB) && $(NPM) run dev

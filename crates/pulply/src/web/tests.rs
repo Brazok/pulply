@@ -184,3 +184,23 @@ async fn unknown_api_routes_are_not_the_spa() {
         assert!(html.contains("no web interface"));
     }
 }
+
+#[test]
+fn wildcard_addresses_list_the_network_interfaces() {
+    let ifaces = || {
+        [
+            ("lo", "127.0.0.1"),
+            ("eth0", "192.168.1.20"),
+            ("docker0", "172.17.0.1"),
+            ("eth0", "fe80::1"),
+            ("eth0", "2001:db8::20"),
+            ("wt0", "100.72.0.5"),
+        ]
+        .map(|(n, ip)| (n.to_owned(), ip.parse().unwrap()))
+    };
+    let hosts = |listen: &str| super::display_hosts(listen.parse().unwrap(), ifaces());
+    assert_eq!(hosts("0.0.0.0:8484"), ["localhost", "192.168.1.20", "100.72.0.5"]);
+    assert_eq!(hosts("[::]:8484"), ["localhost", "192.168.1.20", "[2001:db8::20]", "100.72.0.5"]);
+    assert_eq!(hosts("10.0.0.5:8484"), ["10.0.0.5"]);
+    assert_eq!(hosts("[::1]:8484"), ["[::1]"]);
+}

@@ -174,7 +174,14 @@ bar and notify on completion; a distribution's URL is shown once created.
 pulply serve                         # http://127.0.0.1:8484/, default context
 pulply serve --context lab --open    # opens the browser on context lab
 pulply serve --readonly              # no modification possible from the interface
+pulply serve --listen 0.0.0.0:8484   # on the network: prints a link with the token for each address
 ```
+
+Outside a loopback address, every browser must present the access token: the printed links carry
+it (`#token=…`), or it is asked on the first visit. It changes at each start unless fixed with
+`--token` or `PULPLY_WEB_TOKEN`. The traffic is plain HTTP and the server acts with your Pulp
+credentials: serve on a trusted network, or behind a TLS reverse proxy. `make serve-lan` does the
+same from the repository.
 
 The interface is built with [shadcn/ui](https://ui.shadcn.com) and embedded in the binary. It uses the same
 configuration and contexts as the TUI, and the same discovery of the server's OpenAPI schema: every

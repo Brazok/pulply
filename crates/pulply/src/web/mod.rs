@@ -13,7 +13,7 @@ mod assets;
 mod proxy;
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use axum::extract::{Request, State};
@@ -215,29 +215,76 @@ pub fn build_state(config: Config, opts: &ServeOptions) -> Result<Arc<WebState>>
     }))
 }
 
+/// Interfaces of containers and virtual machines: not where other machines reach this one.
+const VIRTUAL_INTERFACES: &[&str] = &["docker", "br-", "veth", "virbr", "podman", "cni", "flannel", "vnet"];
+
+fn url_host(ip: IpAddr) -> String {
+    match ip {
+        IpAddr::V4(v4) => v4.to_string(),
+        IpAddr::V6(v6) => format!("[{v6}]"),
+    }
+}
+
+/// Hosts to print for the listening address: itself, or for a wildcard address (`0.0.0.0`,
+/// `[::]`) `localhost` then the address of each network interface of the matching family.
+pub(crate) fn display_hosts(addr: SocketAddr, interfaces: impl IntoIterator<Item = (String, IpAddr)>) -> Vec<String> {
+    if !addr.ip().is_unspecified() {
+        return vec![url_host(addr.ip())];
+    }
+    let mut hosts = vec!["localhost".to_owned()];
+    for (name, ip) in interfaces {
+        let usable = !ip.is_loopback()
+            && !VIRTUAL_INTERFACES.iter().any(|p| name.starts_with(p))
+            // `[::]` usually accepts IPv4 too; `0.0.0.0` never accepts IPv6.
+            && (addr.is_ipv6() || ip.is_ipv4())
+            && !matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local());
+        let host = url_host(ip);
+        if usable && !hosts.contains(&host) {
+            hosts.push(host);
+        }
+    }
+    hosts
+}
+
 pub async fn serve(config: Config, opts: ServeOptions) -> Result<()> {
     let state = build_state(config, &opts)?;
     let listener = tokio::net::TcpListener::bind(opts.listen)
         .await
         .wrap_err_with(|| format!("cannot listen on {}", opts.listen))?;
     let addr = listener.local_addr()?;
-    let host = if addr.ip().is_unspecified() { "localhost".to_owned() } else { addr.ip().to_string() };
-    let host = if addr.is_ipv6() && !addr.ip().is_unspecified() { format!("[{host}]") } else { host };
-    let url = if state.local {
-        format!("http://{host}:{}/", addr.port())
+    let interfaces = if addr.ip().is_unspecified() {
+        if_addrs::get_if_addrs().unwrap_or_default().into_iter().map(|i| (i.name.clone(), i.ip())).collect()
     } else {
-        format!("http://{host}:{}/#token={}", addr.port(), state.token)
+        Vec::new()
     };
+    let urls: Vec<String> = display_hosts(addr, interfaces)
+        .into_iter()
+        .map(|host| {
+            if state.local {
+                format!("http://{host}:{}/", addr.port())
+            } else {
+                format!("http://{host}:{}/#token={}", addr.port(), state.token)
+            }
+        })
+        .collect();
     if !assets::available() {
         eprintln!("warning: this build has no web interface assets (build crates/pulply/web first)");
     }
-    println!("pulply web interface: {url}");
+    if let [url] = urls.as_slice() {
+        println!("pulply web interface: {url}");
+    } else {
+        println!("pulply web interface:");
+        for url in &urls {
+            println!("  {url}");
+        }
+    }
     if !state.local {
         println!("listening on {addr}: anyone reaching this address with the token gets your Pulp access");
+        println!("the token changes at each start unless fixed with --token or PULPLY_WEB_TOKEN");
     }
     tracing::info!(%addr, "web interface listening");
     if opts.open {
-        open_browser(&url);
+        open_browser(&urls[0]);
     }
     axum::serve(listener, router(state)).with_graceful_shutdown(shutdown()).await?;
     Ok(())
