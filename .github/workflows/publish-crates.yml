@@ -16,5 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/pulply/web/package-lock.json
+      # The crate ships the prebuilt web interface (web/dist), not its sources.
+      - name: Build the web interface
+        working-directory: crates/pulply/web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
       - run: cargo publish --locked -p pulply-api
       - run: cargo publish --locked -p pulply

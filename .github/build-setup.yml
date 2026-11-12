@@ -1,0 +1,11 @@
+# Steps run by cargo-dist before each release build (`github-build-setup` in
+# dist-workspace.toml): Node builds the web interface embedded by `pulply serve`.
+- name: Setup Node
+  uses: actions/setup-node@v4
+  with:
+    node-version: 22
+- name: Build the web interface
+  run: |
+    cd crates/pulply/web
+    npm ci --no-audit --no-fund
+    npm run build

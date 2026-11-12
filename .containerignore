@@ -2,3 +2,5 @@ target
 .git
 deploy
 docs
+crates/pulply/web/node_modules
+crates/pulply/web/dist
