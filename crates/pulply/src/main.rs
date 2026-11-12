@@ -16,6 +16,7 @@ mod testutil;
 mod theme;
 mod ui;
 mod views;
+mod web;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
@@ -35,6 +36,17 @@ async fn main() -> Result<()> {
     let _log_guard = logging::init(&cli.log_level)?;
     let config = config::Config::load(cli.config.as_deref())?;
     rust_i18n::set_locale(select_language(config.language.as_deref()));
+    if let Some(cli::Mode::Serve(args)) = cli.mode {
+        tracing::info!("starting pulply {} web interface", env!("CARGO_PKG_VERSION"));
+        let opts = web::ServeOptions {
+            listen: args.listen,
+            readonly: cli.readonly,
+            context: cli.context,
+            token: args.token,
+            open: args.open,
+        };
+        return web::serve(config, opts).await;
+    }
     let context = config.select_context(cli.context.as_deref())?.name.clone();
     tracing::info!(context, "starting pulply {}", env!("CARGO_PKG_VERSION"));
 
