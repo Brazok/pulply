@@ -5,7 +5,9 @@
 
 CARGO     ?= cargo
 NPM       ?= npm
-PODMAN    ?= podman
+# Container engine: podman when installed, else docker.
+PODMAN    ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
+COMPOSE   := $(PODMAN) compose -f deploy/compose.yml
 WEB       := crates/pulply/web
 IMAGE     ?= pulply
 LISTEN    ?= 127.0.0.1:8484
@@ -74,14 +76,15 @@ web-dev: web-deps ## Vite with hot reload, proxying to `make serve ARGS="--token
 	cd $(WEB) && $(NPM) run dev
 
 pulp-up: ## Local Pulp for development (admin / password) on $(PULP_PORT)
-	PULP_PORT=$(PULP_PORT) $(PODMAN) compose -f deploy/compose.yml up -d
+	PULP_PORT=$(PULP_PORT) $(COMPOSE) up -d
 
 pulp-down: ## Stop the local Pulp
-	$(PODMAN) compose -f deploy/compose.yml down
+	$(COMPOSE) down
 
+# A running Pulp is left as it is (whatever its port); a stopped one is started on $(PULP_PORT).
 pulp: ## Follow the local Pulp logs (starts it if needed; TAIL=100 lines of history)
-	@PULP_PORT=$(PULP_PORT) $(PODMAN) compose -f deploy/compose.yml up -d
-	$(PODMAN) compose -f deploy/compose.yml logs --follow --tail=$(or $(TAIL),100)
+	@[ -n "$$($(COMPOSE) ps -q --status running pulp)" ] || PULP_PORT=$(PULP_PORT) $(COMPOSE) up -d
+	$(COMPOSE) logs --follow --tail=$(or $(TAIL),100) pulp
 
 # ---------------------------------------------------------------- packaging
 
