@@ -24,7 +24,7 @@ futures = "0.3.34"
 getrandom = "0.4.3"
 hex = "0.4.3"
 if-addrs = "0.15.0"
-pulply-api = { version = "0.1.2", path = "../pulply-api" }
+pulply-api = { version = "0.2.0", path = "../pulply-api" }
 ratatui = "0.30.2"
 rust-embed = { version = "8.14.0", features = ["mime-guess"] }
 rust-i18n = "4.2.4"
