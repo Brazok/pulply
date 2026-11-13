@@ -194,6 +194,16 @@ every plugin action are available. `Ctrl-K` / `⌘K` jumps to any resource type.
 **Advanced** shows every resource type, field and operation.
 The **Map** tab of a remote, repository, version, publication or distribution draws the chain it
 belongs to (remote → repository → versions → publications → distributions → client URL).
+For a container pull-through cache it shows the remote, the distribution, the cached images and
+the `docker login` / `docker pull` commands clients use.
+
+- **Disk usage** breaks the server's storage down by plugin, content type and repository, orphans
+  included. Pulp has no endpoint for this: `pulply serve` reads every artifact and content unit in
+  the background (with progress, cancellable) and keeps the last report on disk.
+- **Maintenance** runs the usual server maintenance in one click: orphan cleanup (with the current
+  count), task purge (older than 7, 30, 90 or 365 days), storage repair (quick check or full
+  checksum verification) and space reclaim, each with its last run; `Options…` opens the full form.
+- **Administration** gathers users, groups, roles, access policies and the other admin resources.
 
 The pulply server keeps the Pulp credentials (asked once in the browser when they are not in the
 configuration) and relays the browser's requests to Pulp. Every API request needs an access token:
@@ -216,7 +226,9 @@ make pulp-up PULP_HOST=192.168.1.10   # same, with download URLs reachable from 
 
 The local Pulp's registry uses token authentication, so `docker login` works and pull-through
 caches can be filled (`docker login <host>:<port>` then `docker pull <host>:<port>/<path>/<image>`).
-`PULP_TOKEN_AUTH_DISABLED=true make pulp-up` goes back to Basic authentication only.
+`PULP_TOKEN_AUTH_DISABLED=true make pulp-up` goes back to Basic authentication only. A local Pulp
+started before token authentication was enabled is recreated by `make pulp-up` (the image then
+generates the token key pair in `deploy/settings/certs/`, ignored by git).
 
 ```sh
 make serve ARGS="--context lab"
