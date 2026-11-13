@@ -11,7 +11,7 @@ rust-version.workspace = true
 readme = "README.md"
 keywords = ["pulp", "tui", "repository", "ratatui", "k9s"]
 categories = ["command-line-utilities"]
-include = ["src/**/*", "build.rs", "locales/*.yml", "skins/*.toml", "web/dist/**/*", "README.md", "LICENSE"]
+include = ["src/**/*", "build.rs", "locales/*.yml", "skins/*.toml", "web/dist/**/*", "/README.md", "/LICENSE"]
 
 [dependencies]
 axum = "0.8.9"

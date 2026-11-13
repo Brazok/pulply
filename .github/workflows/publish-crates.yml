@@ -28,4 +28,5 @@ jobs:
           npm ci --no-audit --no-fund
           npm run build
       - run: cargo publish --locked -p pulply-api
-      - run: cargo publish --locked -p pulply
+      # web/dist is gitignored but shipped through `include`, so cargo sees it as uncommitted.
+      - run: cargo publish --locked -p pulply --allow-dirty
