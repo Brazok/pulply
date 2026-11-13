@@ -181,6 +181,18 @@ export class Registry {
     return candidates.find((t) => t.name === plugin) ?? candidates[0];
   }
 
+  /**
+   * `t` and the other listable types of its category for the same plugin (`remotes/file/file`
+   * and `remotes/file/git`), `t` first: a field taking a remote accepts any of them.
+   */
+  variants(t: ResourceType): ResourceType[] {
+    if (t.generic || t.parent || t.plugin === "core" || !PLUGIN_CATEGORIES.includes(t.category)) return [t];
+    const others = this.types.filter(
+      (o) => o !== t && o.category === t.category && o.plugin === t.plugin && !o.parent && !o.generic && o.list_path,
+    );
+    return [t, ...others];
+  }
+
   /** Content types of `plugin` creatable from an upload. */
   uploadTypes(plugin?: string): ResourceType[] {
     return this.types.filter(

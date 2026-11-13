@@ -34,6 +34,7 @@ fn index(state: &WebState) -> Response {
 }
 
 pub async fn serve(State(state): State<Arc<WebState>>, req: Request) -> Response {
+    // Hashed bundles (`assets/`) are immutable; the other files are revalidated by `ETag`.
     let path = req.uri().path().trim_start_matches('/');
     if path.starts_with("api/") {
         return super::error(StatusCode::NOT_FOUND, "not_found", "unknown API route");
@@ -43,15 +44,14 @@ pub async fn serve(State(state): State<Arc<WebState>>, req: Request) -> Response
     }
     match Assets::get(path) {
         Some(file) => {
-            let cache = if path.starts_with("assets/") { "public, max-age=31536000, immutable" } else { "no-cache" };
-            (
-                [
-                    (header::CONTENT_TYPE, file.metadata.mimetype().to_owned()),
-                    (header::CACHE_CONTROL, cache.to_owned()),
-                ],
-                file.data,
-            )
-                .into_response()
+            let immutable = path.starts_with("assets/");
+            let cache = if immutable { "public, max-age=31536000, immutable" } else { "no-cache" };
+            let tag = format!("\"{}\"", hex::encode(&file.metadata.sha256_hash()[..16]));
+            let headers = [(header::CACHE_CONTROL, cache.to_owned()), (header::ETAG, tag.clone())];
+            if super::not_modified(req.headers(), &tag) {
+                return (StatusCode::NOT_MODIFIED, headers).into_response();
+            }
+            ([(header::CONTENT_TYPE, file.metadata.mimetype().to_owned())], headers, file.data).into_response()
         }
         // Client-side route (`/c/lab/browse/repositories/rpm/rpm`), not a missing file.
         None if !path.rsplit('/').next().unwrap_or_default().contains('.') => index(&state),

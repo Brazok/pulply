@@ -9,7 +9,9 @@ use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{WebSession, WebState, api_error, error};
+use axum::http::HeaderMap;
+
+use super::{WebSession, WebState, api_error, cached_json, error};
 use crate::config::Origin;
 use crate::perms::Access;
 
@@ -123,24 +125,80 @@ pub async fn session(State(state): State<Arc<WebState>>, Path(ctx): Path<String>
 }
 
 pub async fn disconnect(State(state): State<Arc<WebState>>, Path(ctx): Path<String>) -> StatusCode {
-    state.sessions.write().await.remove(&ctx);
+    if let Some(s) = state.sessions.write().await.remove(&ctx) {
+        s.storage.cancel();
+        let client = s.client.clone();
+        tokio::spawn(async move { client.end_session().await });
+    }
     StatusCode::NO_CONTENT
 }
 
-async fn registry_response(state: &WebState, ctx: &str, force: bool) -> Response {
+/// The registry is several megabytes: the browser keeps it and revalidates it by `ETag`.
+async fn registry_response(state: &WebState, ctx: &str, force: bool, headers: &HeaderMap) -> Response {
     let Some(s) = state.session(ctx).await else {
         return error(StatusCode::CONFLICT, "not_connected", format!("context {ctx} is not connected"));
     };
     match s.registry_json(force).await {
-        Ok(json) => ([(header::CONTENT_TYPE, "application/json")], json.as_ref().clone()).into_response(),
+        Ok((json, tag)) if force => {
+            ([(header::CONTENT_TYPE, "application/json".to_owned()), (header::ETAG, tag)], json).into_response()
+        }
+        Ok((json, tag)) => cached_json(headers, json, &tag),
         Err(e) => api_error(&e),
     }
 }
 
-pub async fn registry(State(state): State<Arc<WebState>>, Path(ctx): Path<String>) -> Response {
-    registry_response(&state, &ctx, false).await
+pub async fn registry(State(state): State<Arc<WebState>>, Path(ctx): Path<String>, headers: HeaderMap) -> Response {
+    registry_response(&state, &ctx, false, &headers).await
 }
 
-pub async fn refresh_registry(State(state): State<Arc<WebState>>, Path(ctx): Path<String>) -> Response {
-    registry_response(&state, &ctx, true).await
+pub async fn refresh_registry(
+    State(state): State<Arc<WebState>>,
+    Path(ctx): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    registry_response(&state, &ctx, true, &headers).await
+}
+
+fn not_connected(ctx: &str) -> Response {
+    error(StatusCode::CONFLICT, "not_connected", format!("context {ctx} is not connected"))
+}
+
+/// Disk usage scan: state, progress and last report. Polled by every open page: unchanged
+/// state is answered `304 Not Modified` instead of the whole report.
+pub async fn storage(State(state): State<Arc<WebState>>, Path(ctx): Path<String>, headers: HeaderMap) -> Response {
+    let Some(s) = state.session(&ctx).await else { return not_connected(&ctx) };
+    let cache = s.storage_cache();
+    let job = s.storage.clone();
+    let snapshot = tokio::task::spawn_blocking(move || {
+        serde_json::to_vec(&job.snapshot(cache.as_ref())).map(|v| {
+            let tag = super::etag(&v);
+            (axum::body::Bytes::from(v), tag)
+        })
+    })
+    .await;
+    match snapshot {
+        Ok(Ok((body, tag))) => cached_json(&headers, body, &tag),
+        Ok(Err(e)) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", e.to_string()),
+        Err(e) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", e.to_string()),
+    }
+}
+
+/// Starts a disk usage scan (read-only requests; allowed in read-only contexts).
+pub async fn storage_scan(State(state): State<Arc<WebState>>, Path(ctx): Path<String>) -> Response {
+    let Some(s) = state.session(&ctx).await else { return not_connected(&ctx) };
+    let registry = match crate::session::load_registry(s.client.clone(), s.status.clone(), false).await {
+        Ok(r) => Arc::new(r),
+        Err(e) => return api_error(&e),
+    };
+    if s.storage.start(s.client.clone(), registry, s.storage_cache()) {
+        StatusCode::ACCEPTED.into_response()
+    } else {
+        error(StatusCode::CONFLICT, "running", "a scan is already running")
+    }
+}
+
+pub async fn storage_cancel(State(state): State<Arc<WebState>>, Path(ctx): Path<String>) -> Response {
+    let Some(s) = state.session(&ctx).await else { return not_connected(&ctx) };
+    s.storage.cancel();
+    StatusCode::NO_CONTENT.into_response()
 }

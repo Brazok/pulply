@@ -50,6 +50,9 @@ struct Inner {
     readonly: bool,
     /// URL -> (ETag, body) for conditional GETs.
     etags: Mutex<HashMap<String, (String, Value)>>,
+    /// `Cookie` value of the Django session opened by [`PulpClient::start_session`], used for
+    /// reads instead of Basic authentication (shared by the clients derived from this one).
+    session: Arc<Mutex<Option<String>>>,
 }
 
 impl std::fmt::Debug for PulpClient {
@@ -106,6 +109,7 @@ impl PulpClient {
                 auth: cfg.username.map(|u| (u, cfg.password)),
                 readonly: cfg.readonly,
                 etags: Mutex::new(HashMap::new()),
+                session: Arc::default(),
             }),
         })
     }
@@ -125,7 +129,64 @@ impl PulpClient {
                 auth: inner.auth.clone(),
                 readonly: inner.readonly,
                 etags: Mutex::new(HashMap::new()),
+                session: inner.session.clone(),
             }),
+        }
+    }
+
+    fn session_cookie(&self) -> Option<String> {
+        self.inner.session.lock().expect("session poisoned").clone()
+    }
+
+    /// Whether reads currently go through a session cookie.
+    pub fn has_session(&self) -> bool {
+        self.session_cookie().is_some()
+    }
+
+    /// Forgets the session (expired or refused): requests fall back to Basic authentication.
+    pub fn drop_session(&self) {
+        *self.inner.session.lock().expect("session poisoned") = None;
+    }
+
+    /// Opens a Django session (`POST login/`) so that reads are authenticated by cookie.
+    ///
+    /// Basic authentication makes the server hash the password on every request (about
+    /// 100 ms each with Django's default hasher); a session cookie skips it. Writes keep
+    /// Basic authentication, which needs no CSRF token. Returns whether a session was
+    /// opened: servers without the login endpoint or session authentication simply keep
+    /// Basic authentication. This POST only creates the session: it is sent even by a
+    /// read-only client, which refuses every request modifying Pulp's data.
+    pub async fn start_session(&self) -> bool {
+        let Some((user, Some(pass))) = self.inner.auth.clone() else { return false };
+        let url = self.url(&self.api_path("login/"));
+        let resp =
+            self.inner.http.post(&url).basic_auth(user, Some(pass)).header(header::CONTENT_LENGTH, 0).send().await;
+        let Ok(resp) = resp else { return false };
+        if !resp.status().is_success() {
+            return false;
+        }
+        let cookie = resp
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .filter_map(|v| v.split(';').next())
+            .find(|pair| pair.trim_start().starts_with("sessionid="))
+            .map(|pair| pair.trim().to_owned());
+        let opened = cookie.is_some();
+        if opened {
+            *self.inner.session.lock().expect("session poisoned") = cookie;
+        }
+        opened
+    }
+
+    /// Closes the session on the server (best effort).
+    pub async fn end_session(&self) {
+        let Some(cookie) = self.session_cookie() else { return };
+        self.drop_session();
+        if let Some((user, pass)) = self.inner.auth.clone() {
+            let url = self.url(&self.api_path("login/"));
+            let _ = self.inner.http.delete(&url).basic_auth(user, pass).header(header::COOKIE, cookie).send().await;
         }
     }
 
@@ -159,6 +220,13 @@ impl PulpClient {
     }
 
     pub(crate) fn request(&self, method: Method, url: &str) -> reqwest::RequestBuilder {
+        // Reads use the session cookie when there is one; the server must not also get the
+        // Basic header, or it hashes the password anyway.
+        if matches!(method, Method::GET | Method::HEAD)
+            && let Some(cookie) = self.session_cookie()
+        {
+            return self.inner.http.request(method, url).header(header::COOKIE, cookie);
+        }
         let req = self.inner.http.request(method, url);
         match &self.inner.auth {
             Some((user, pass)) => req.basic_auth(user, pass.as_deref()),
@@ -180,7 +248,21 @@ impl PulpClient {
         if let Some(etag) = &cached_etag {
             req = req.header(header::IF_NONE_MATCH, etag);
         }
-        let resp = req.send().await?;
+        let with_session = self.has_session();
+        let mut resp = req.send().await?;
+        // A session the server no longer accepts: back to Basic authentication, and a new
+        // session if the credentials are still good.
+        if with_session && matches!(resp.status(), StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
+            self.drop_session();
+            let mut retry = self.request(Method::GET, url.as_str());
+            if let Some(etag) = &cached_etag {
+                retry = retry.header(header::IF_NONE_MATCH, etag);
+            }
+            resp = retry.send().await?;
+            if resp.status().is_success() || resp.status() == StatusCode::NOT_MODIFIED {
+                self.start_session().await;
+            }
+        }
         let status = resp.status();
         if status == StatusCode::NOT_MODIFIED
             && let Some((_, body)) = self.etag_lookup(&key)

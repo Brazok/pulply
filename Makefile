@@ -12,6 +12,9 @@ WEB       := crates/pulply/web
 IMAGE     ?= pulply
 LISTEN    ?= 127.0.0.1:8484
 PULP_PORT ?= 8080
+# Host name in the URLs Pulp hands out (distribution base_url): the machine's name or IP
+# when Pulp is used from other machines, e.g. `make pulp-up PULP_HOST=$$(hostname -I | cut -d" " -f1)`.
+PULP_HOST ?= localhost
 export PULPLY_SKIP_WEB := 1
 
 .DEFAULT_GOAL := all
@@ -79,14 +82,14 @@ web-dev: web-deps ## Vite with hot reload, proxying to `make serve ARGS="--token
 	cd $(WEB) && $(NPM) run dev
 
 pulp-up: ## Local Pulp for development (admin / password) on $(PULP_PORT)
-	PULP_PORT=$(PULP_PORT) $(COMPOSE) up -d
+	PULP_PORT=$(PULP_PORT) PULP_HOST=$(PULP_HOST) $(COMPOSE) up -d
 
 pulp-down: ## Stop the local Pulp
 	$(COMPOSE) down
 
 # A running Pulp is left as it is (whatever its port); a stopped one is started on $(PULP_PORT).
 pulp: ## Follow the local Pulp logs (starts it if needed; TAIL=100 lines of history)
-	@[ -n "$$($(COMPOSE) ps -q --status running pulp)" ] || PULP_PORT=$(PULP_PORT) $(COMPOSE) up -d
+	@[ -n "$$($(COMPOSE) ps -q --status running pulp)" ] || PULP_PORT=$(PULP_PORT) PULP_HOST=$(PULP_HOST) $(COMPOSE) up -d
 	$(COMPOSE) logs --follow --tail=$(or $(TAIL),100) pulp
 
 # ---------------------------------------------------------------- packaging

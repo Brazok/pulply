@@ -17,7 +17,7 @@ import {UploadDialog} from "../components/UploadDialog";
 import {StateChip, TimeAgo} from "../components/values";
 import type {Json} from "../lib/api";
 import {bytes, duration, pluginLabel, singular, taskName, typeTitle} from "../lib/format";
-import {itemUrl, listUrl} from "../lib/routes";
+import {base, itemUrl, listUrl} from "../lib/routes";
 import {useMode} from "../lib/mode";
 import {useSession} from "../lib/session";
 
@@ -241,8 +241,11 @@ export function Dashboard() {
         <div className="flex flex-col gap-4">
           {storage?.total ? (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex items-center justify-between">
                 <CardTitle>Storage</CardTitle>
+                <Link className="text-sm text-primary hover:underline" to={`${base(ctx)}/storage`}>
+                  Details →
+                </Link>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 <Progress

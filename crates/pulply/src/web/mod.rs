@@ -7,17 +7,23 @@
 //! written into the served page, and the `Host` header is checked so that another site
 //! cannot reach the API through DNS rebinding; on any other address the token is only
 //! printed at startup and must be entered in the browser.
+//!
+//! Every response carries security headers (no framing, no MIME sniffing, a strict content
+//! security policy), and the JSON built by pulply (registry, disk usage) an `ETag`, so that
+//! the browser revalidates it instead of downloading it again.
 
 mod api;
 mod assets;
 mod proxy;
+mod storage;
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
+use axum::body::Bytes;
 use axum::extract::{Request, State};
-use axum::http::{HeaderMap, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
@@ -50,8 +56,10 @@ pub struct WebSession {
     pub status: Status,
     pub perms: Permissions,
     pub ignored_domain: Option<String>,
-    /// JSON export of the registry, loaded on first use.
-    registry: Mutex<Option<Arc<Vec<u8>>>>,
+    /// JSON export of the registry and its `ETag`, loaded on first use.
+    registry: Mutex<Option<(Bytes, String)>>,
+    /// Disk usage scan of this server.
+    pub storage: Arc<storage::StorageJob>,
 }
 
 pub struct WebState {
@@ -74,23 +82,37 @@ impl WebSession {
             perms: connected.perms,
             ignored_domain: connected.ignored_domain,
             registry: Mutex::new(None),
+            storage: Arc::default(),
         }
     }
 
     /// Registry JSON, loaded (from the schema cache or the server) on first call or when `force`.
-    pub async fn registry_json(&self, force: bool) -> Result<Arc<Vec<u8>>, pulply_api::Error> {
+    /// Cheap to clone: the bytes are shared, not copied, by every response.
+    pub async fn registry_json(&self, force: bool) -> Result<(Bytes, String), pulply_api::Error> {
         let mut slot = self.registry.lock().await;
         if !force && let Some(json) = slot.as_ref() {
             return Ok(json.clone());
         }
         let reg: Registry = crate::session::load_registry(self.client.clone(), self.status.clone(), force).await?;
-        let json = tokio::task::spawn_blocking(move || serde_json::to_vec(&reg.export()))
-            .await
-            .map_err(|e| pulply_api::Error::Decode(e.to_string()))?
-            .map_err(|e| pulply_api::Error::Decode(e.to_string()))?;
-        let json = Arc::new(json);
+        let json = tokio::task::spawn_blocking(move || {
+            serde_json::to_vec(&reg.export()).map(|v| {
+                let tag = etag(&v);
+                (Bytes::from(v), tag)
+            })
+        })
+        .await
+        .map_err(|e| pulply_api::Error::Decode(e.to_string()))?
+        .map_err(|e| pulply_api::Error::Decode(e.to_string()))?;
         *slot = Some(json.clone());
         Ok(json)
+    }
+}
+
+impl WebSession {
+    /// Where the last disk usage report of this server is kept.
+    fn storage_cache(&self) -> Option<std::path::PathBuf> {
+        let server = crate::session::digest(&[self.client.base_url(), self.client.domain().unwrap_or_default()]);
+        crate::session::cache_dir().map(|d| d.join(format!("storage-{server}.json")))
     }
 }
 
@@ -125,6 +147,53 @@ pub fn api_error(e: &pulply_api::Error) -> Response {
         E::Http { .. } | E::Decode(_) => (StatusCode::BAD_GATEWAY, "upstream"),
     };
     error(status, code, e.to_string())
+}
+
+/// Weak `ETag` of a body (weak: the compression layer may re-encode it).
+pub fn etag(body: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    format!("W/\"{}\"", hex::encode(&Sha256::digest(body)[..16]))
+}
+
+/// Whether `If-None-Match` names `tag` (weak comparison, as for `GET`).
+pub(super) fn not_modified(headers: &HeaderMap, tag: &str) -> bool {
+    let bare = |t: &str| t.trim().trim_start_matches("W/").to_owned();
+    let tag = bare(tag);
+    headers
+        .get_all(header::IF_NONE_MATCH)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(','))
+        .any(|t| t.trim() == "*" || bare(t) == tag)
+}
+
+/// JSON body revalidated by the browser (`no-cache` + `ETag`): `304` when it has it already.
+pub fn cached_json(headers: &HeaderMap, body: Bytes, tag: &str) -> Response {
+    let Ok(tag_value) = HeaderValue::from_str(tag) else {
+        return ([(header::CONTENT_TYPE, "application/json")], body).into_response();
+    };
+    let common = [(header::ETAG, tag_value), (header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache"))];
+    if not_modified(headers, tag) {
+        return (StatusCode::NOT_MODIFIED, common).into_response();
+    }
+    (common, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
+/// Policy of the single-page application: everything from this origin; inline styles are
+/// set by the UI components (toasts, popovers); no framing, no plugin, no foreign form.
+const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; \
+font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
+/// Security headers on every response (relayed Pulp responses included).
+async fn security_headers(req: Request, next: Next) -> Response {
+    let mut resp = next.run(req).await;
+    let h = resp.headers_mut();
+    h.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    h.insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    h.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static(CSP));
+    h.insert(header::HeaderName::from_static("cross-origin-opener-policy"), HeaderValue::from_static("same-origin"));
+    resp
 }
 
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -164,6 +233,7 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/contexts/{ctx}/session", get(api::session).delete(api::disconnect))
         .route("/api/contexts/{ctx}/registry", get(api::registry))
         .route("/api/contexts/{ctx}/registry/refresh", post(api::refresh_registry))
+        .route("/api/contexts/{ctx}/storage", get(api::storage).post(api::storage_scan).delete(api::storage_cancel))
         .route("/api/contexts/{ctx}/pulp/{*rest}", any(proxy::proxy))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_token));
     Router::new()
@@ -171,6 +241,7 @@ pub fn router(state: Arc<WebState>) -> Router {
         .merge(protected)
         .fallback(assets::serve)
         .layer(middleware::from_fn_with_state(state.clone(), check_host))
+        .layer(middleware::from_fn(security_headers))
         .layer(CompressionLayer::new())
         .with_state(state)
 }
@@ -290,8 +361,28 @@ pub async fn serve(config: Config, opts: ServeOptions) -> Result<()> {
     Ok(())
 }
 
+/// Ctrl-C, or `SIGTERM` from a service manager or a container runtime (`docker stop`):
+/// running requests are finished, then the server stops.
 async fn shutdown() {
-    let _ = tokio::signal::ctrl_c().await;
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(_) => std::future::pending().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! {
+        () = ctrl_c => {},
+        () = term => {},
+    }
+    tracing::info!("shutting down");
 }
 
 #[cfg(test)]

@@ -11,20 +11,37 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} f
 import {Field, FieldDescription, FieldError, FieldLabel} from "./ui/field";
 import {Input} from "./ui/input";
 import {Spinner} from "./ui/spinner";
+import {PageSpinner} from "./loading";
 
 export function Center({children, loading}: {children?: ReactNode; loading?: boolean}) {
   return (
     <div className="flex min-h-full items-center justify-center p-6">
-      {loading ? <Spinner className="size-8 text-muted-foreground" /> : children}
+      {loading ? <PageSpinner /> : children}
     </div>
   );
 }
 
-export function Logo({className}: {className?: string}) {
+/** `interactive`: inside a clickable parent marked `group` (hover/press animation). */
+export function Logo({className, interactive}: {className?: string; interactive?: boolean}) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <img alt="" className="size-7" src="/favicon.svg" />
-      <span className="text-lg font-semibold tracking-tight">pulply</span>
+      <img
+        alt=""
+        className={cn(
+          "size-7",
+          interactive &&
+            "transition-transform duration-300 ease-out motion-safe:group-hover:-rotate-12 motion-safe:group-hover:scale-110 motion-safe:group-active:scale-95",
+        )}
+        src="/favicon.svg"
+      />
+      <span
+        className={cn(
+          "text-lg font-semibold tracking-tight",
+          interactive && "transition-[color,letter-spacing] duration-300 group-hover:text-primary motion-safe:group-hover:tracking-normal",
+        )}
+      >
+        pulply
+      </span>
     </div>
   );
 }

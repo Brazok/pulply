@@ -8,7 +8,7 @@ import {ConfirmDialog} from "../dialogs";
 import {type FormSpec, FormModal} from "../SchemaForm";
 import {Badge} from "../ui/badge";
 import {Button} from "../ui/button";
-import {Spinner} from "../ui/spinner";
+import {LinesSkeleton} from "../loading";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "../ui/table";
 
 interface Assignment {
@@ -26,7 +26,7 @@ export function RolesPanel({href, name}: {href: string; name: string}) {
   const [form, setForm] = useState<FormSpec | null>(null);
   const [removing, setRemoving] = useState<Assignment | null>(null);
 
-  if (roles.isLoading) return <Spinner />;
+  if (roles.isLoading) return <LinesSkeleton />;
   if (roles.error) return <p className="text-sm text-destructive">{errorText(roles.error)}</p>;
   const list = roles.data?.roles ?? [];
   return (

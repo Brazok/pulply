@@ -11,7 +11,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} f
 import {Skeleton} from "../components/ui/skeleton";
 import {pluginLabel, titleize} from "../lib/format";
 import type {GlobalOperation} from "../lib/registry";
-import {base} from "../lib/routes";
+import {adminUrl, base} from "../lib/routes";
 import {useSession} from "../lib/session";
 
 interface Known {
@@ -84,7 +84,7 @@ export function OperationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        crumbs={[{label: "Home", to: base(ctx)}, {label: "Maintenance"}]}
+        crumbs={[{label: "Home", to: base(ctx)}, {label: "Administration", to: adminUrl(ctx)}, {label: "Maintenance"}]}
         subtitle="Server-wide operations. Each one asks for its parameters before running."
         title="Maintenance"
       />

@@ -52,8 +52,9 @@ pub async fn proxy(
         Ok(r) => r,
         Err(e) => return api_error(&e),
     };
+    let headers = req.headers().clone();
     for name in &REQUEST_HEADERS {
-        if let Some(v) = req.headers().get(name).and_then(|v| v.to_str().ok()) {
+        if let Some(v) = headers.get(name).and_then(|v| v.to_str().ok()) {
             upstream = upstream.header(name.as_str(), v);
         }
     }
@@ -67,10 +68,36 @@ pub async fn proxy(
         upstream = upstream.body(reqwest::Body::wrap_stream(stream));
     }
     tracing::debug!(%method, path, "proxy");
-    let resp = match upstream.send().await {
+    let is_read = matches!(method, reqwest::Method::GET | reqwest::Method::HEAD);
+    let with_session = is_read && session.client.has_session();
+    let mut resp = match upstream.send().await {
         Ok(r) => r,
         Err(e) => return api_error(&pulply_api::Error::from(e)),
     };
+    // Session refused by Pulp (expired): same request with Basic authentication (reads carry
+    // no body, they can be sent again), then a new session.
+    if with_session && matches!(resp.status().as_u16(), 401 | 403) {
+        session.client.drop_session();
+        let mut retry = match session.client.raw(method.clone(), &path) {
+            Ok(r) => r,
+            Err(e) => return api_error(&e),
+        };
+        for name in &REQUEST_HEADERS {
+            if let Some(v) = headers.get(name).and_then(|v| v.to_str().ok()) {
+                retry = retry.header(name.as_str(), v);
+            }
+        }
+        resp = match retry.send().await {
+            Ok(r) => r,
+            Err(e) => return api_error(&pulply_api::Error::from(e)),
+        };
+        if resp.status().is_success() {
+            let client = session.client.clone();
+            tokio::spawn(async move {
+                client.start_session().await;
+            });
+        }
+    }
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let mut out = Response::builder().status(status);
     for name in &RESPONSE_HEADERS {

@@ -192,6 +192,8 @@ live; role assignments, global operations (orphan cleanup, repair, reclaim, purg
 every plugin action are available. `Ctrl-K` / `⌘K` jumps to any resource type. The **Simple** mode
 (the default, top right) keeps the repositories, remotes, distributions and everyday actions;
 **Advanced** shows every resource type, field and operation.
+The **Map** tab of a remote, repository, version, publication or distribution draws the chain it
+belongs to (remote → repository → versions → publications → distributions → client URL).
 
 The pulply server keeps the Pulp credentials (asked once in the browser when they are not in the
 configuration) and relays the browser's requests to Pulp. Every API request needs an access token:
@@ -209,6 +211,7 @@ The token is random at each start, or fixed with `--token` / `PULPLY_WEB_TOKEN`.
 ```sh
 make            # formatting, clippy, Rust and web tests, release build (`make help` for the rest)
 make pulp-up    # local Pulp on :8080 (admin / password)
+make pulp-up PULP_HOST=192.168.1.10   # same, with download URLs reachable from other machines
 make serve ARGS="--context lab"
 ```
 

@@ -3,12 +3,14 @@
 
 import {useQueryClient} from "@tanstack/react-query";
 import {ChevronDown} from "lucide-react";
-import {type ReactNode, useEffect, useId, useMemo, useState} from "react";
+import {type ReactNode, createContext, useContext, useEffect, useId, useMemo, useState} from "react";
+import {Link} from "react-router";
 import {toast} from "sonner";
 
 import {ApiError, type Body, type Json, taskOf} from "../lib/api";
 import {fieldLabel} from "../lib/format";
-import type {Property, Registry, Schema} from "../lib/registry";
+import {type Property, type Registry, type ResourceType, type Schema, versionRepository} from "../lib/registry";
+import {listUrl} from "../lib/routes";
 import {errorText, usePulp, useSession} from "../lib/session";
 import {cn} from "../lib/utils";
 import {ResultDialog} from "./dialogs";
@@ -233,9 +235,35 @@ export function buildBody(
 /** Radix Select items cannot carry an empty value. */
 const UNSET = "__unset";
 
+/** What a relation picker knows about its form: the other values and the resource concerned. */
+interface FormContextValue {
+  values: Record<string, string>;
+  /** Type of the resource created, edited or acted upon. */
+  type?: ResourceType;
+  /** Repository the form is about (its own form, or one of its actions). */
+  repository?: string;
+}
+
+const FormContext = createContext<FormContextValue>({values: {}});
+
 function RelationInput({field, value, onChange, invalid, labelId}: FieldProps) {
-  const {registry} = useSession();
+  const {registry, ctx} = useSession();
+  const form = useContext(FormContext);
   const target = field.kind.k === "relation" && field.kind.target ? registry.get(field.kind.target) : undefined;
+  const repo = form.values.repository?.startsWith("/")
+    ? form.values.repository
+    : form.values[SOURCE_REPO]?.startsWith("/")
+      ? form.values[SOURCE_REPO]
+      : form.repository;
+  const repoType = repo ? registry.typeForHref(repo) : undefined;
+
+  // Versions of the form's repository only (otherwise every repository's "Version 1"…).
+  if ((field.name === "repository_version" || field.name === "base_version") && repo && repoType) {
+    const versions = registry.get(`${repoType.id}/versions`);
+    if (versions) {
+      return <HrefPicker invalid={invalid} labelId={labelId} listPath={`${repo}versions/`} type={versions} value={value} onChange={onChange} />;
+    }
+  }
   if (!target?.list_path) {
     return (
       <Input
@@ -247,7 +275,37 @@ function RelationInput({field, value, onChange, invalid, labelId}: FieldProps) {
       />
     );
   }
-  return <HrefPicker invalid={invalid} labelId={labelId} type={target} value={value} onChange={onChange} />;
+  let types = registry.variants(target);
+  // A pull-through remote only serves a pull-through distribution, never a repository.
+  let hidden: ResourceType | undefined;
+  if (field.name === "remote") {
+    const pullThrough = form.type?.name === "pull-through";
+    const kept = types.filter((t) => (t.name === "pull-through") === pullThrough);
+    const all = pullThrough ? registry.types.filter((t) => t.category === "remotes" && t.plugin === target.plugin && t.name === "pull-through") : kept;
+    if (!pullThrough) hidden = types.find((t) => t.name === "pull-through");
+    if (all.length) types = all;
+  }
+  const params = field.name === "publication" && repo && target.list_params.some((p) => p.name === "repository") ? {repository: repo} : undefined;
+  const picker = <HrefPicker invalid={invalid} labelId={labelId} params={params} type={types[0]} types={types} value={value} onChange={onChange} />;
+  if (!hidden) return picker;
+  const dist = registry.types.find((t) => t.category === "distributions" && t.plugin === hidden.plugin && t.name === "pull-through");
+  return (
+    <div className="flex flex-col gap-1.5">
+      {picker}
+      <p className="text-xs text-muted-foreground">
+        Pull-through remotes are not listed: Pulp only accepts them on a{" "}
+        {dist ? (
+          <Link className="text-primary hover:underline" to={listUrl(ctx, dist.id)}>
+            pull-through distribution
+          </Link>
+        ) : (
+          "pull-through distribution"
+        )}
+        , which caches the images pulled through it and creates their repositories by itself. Open the pull-through remote and use{" "}
+        <b>New pull-through distribution</b>.
+      </p>
+    </div>
+  );
 }
 
 interface FieldProps {
@@ -378,6 +436,99 @@ function FieldInput(props: FieldProps & {file: File | null; onFile: (f: File | n
   }
 }
 
+// ---------------------------------------------------------------- distribution source
+
+/** Fields of a distribution naming what it serves: at most one may be set. */
+const SOURCES = ["repository", "repository_version", "publication"] as const;
+type Source = (typeof SOURCES)[number] | "none";
+/** Helper value (never sent): repository whose versions or publications are offered. */
+const SOURCE_REPO = "__source_repository";
+
+const SOURCE_TEXT: Record<Source, {title: string; text: string}> = {
+  repository: {title: "Latest version of a repository", text: "Follows the repository: each new version (sync, upload…) is served automatically."},
+  repository_version: {title: "A fixed repository version", text: "Frozen on the version you pick, whatever happens to the repository afterwards."},
+  publication: {title: "A publication", text: "Serves a publication you created, with its metadata, until you pick another one."},
+  none: {title: "Nothing for now", text: "The distribution exists, but serves no content yet."},
+};
+
+export function sourceOf(values: Record<string, string>): Source | null {
+  return SOURCES.find((f) => values[f]?.trim()) ?? null;
+}
+
+function SourceChooser({
+  fields,
+  plugin,
+  state,
+  setState,
+  errors,
+}: {
+  fields: FieldDef[];
+  plugin: string;
+  state: FormState;
+  setState: (fn: (s: FormState) => FormState) => void;
+  errors: Record<string, string[]>;
+}) {
+  const {registry} = useSession();
+  const available = SOURCES.filter((f) => fields.some((x) => x.name === f));
+  const [mode, setMode] = useState<Source>(() => sourceOf(state.values) ?? (available.includes("repository") ? "repository" : available[0]));
+  // The edited distribution loads after the first render.
+  const loaded = sourceOf(state.values);
+  useEffect(() => {
+    if (loaded) setMode(loaded);
+  }, [loaded]);
+  const repoType = registry.pluginType("repositories", plugin, false);
+  const choose = (next: Source) => {
+    setMode(next);
+    setState((s) => ({...s, values: {...s.values, ...Object.fromEntries(SOURCES.filter((f) => f !== next).map((f) => [f, ""]))}}));
+  };
+  const field = fields.find((f) => f.name === mode);
+  const helperRepo = state.values[SOURCE_REPO] || (mode === "repository_version" && state.values.repository_version ? (versionRepository(state.values.repository_version) ?? "") : "");
+  const options: Source[] = [...available, ...(fields.every((f) => !f.required) ? (["none"] as const) : [])];
+  const groupId = useId();
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border bg-muted/30 p-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium" id={groupId}>
+          What does this distribution serve?
+        </span>
+        <span className="text-xs text-muted-foreground">One source only: a repository, one of its versions, or a publication.</span>
+      </div>
+      <div aria-labelledby={groupId} className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup">
+        {options.map((o) => (
+          <button
+            key={o}
+            aria-checked={mode === o}
+            className={cn(
+              "flex cursor-pointer flex-col gap-0.5 rounded-lg border bg-background p-3 text-left transition-colors outline-none hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring",
+              mode === o && "border-primary bg-primary/5 ring-1 ring-primary",
+            )}
+            role="radio"
+            type="button"
+            onClick={() => choose(o)}
+          >
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <span className={cn("size-3.5 shrink-0 rounded-full border", mode === o ? "border-4 border-primary" : "border-muted-foreground/50")} />
+              {SOURCE_TEXT[o].title}
+            </span>
+            <span className="ps-5.5 text-xs text-muted-foreground">{SOURCE_TEXT[o].text}</span>
+          </button>
+        ))}
+      </div>
+      {(mode === "repository_version" || mode === "publication") && repoType?.list_path && (
+        <Field>
+          <FieldLabel>{mode === "repository_version" ? "Repository" : "Repository (filters the publications)"}</FieldLabel>
+          <HrefPicker
+            type={repoType}
+            value={helperRepo}
+            onChange={(v) => setState((s) => ({...s, values: {...s.values, [SOURCE_REPO]: v, ...(mode === "repository_version" ? {repository_version: ""} : {})}}))}
+          />
+        </Field>
+      )}
+      {field && !(mode === "repository_version" && !helperRepo) && <FieldRow errors={errors} field={field} setState={setState} state={state} />}
+    </div>
+  );
+}
+
 function FieldRow({
   field,
   state,
@@ -467,8 +618,20 @@ function FormBody({spec, onClose}: {spec: FormSpec; onClose: () => void}) {
   const [result, setResult] = useState<unknown | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const primary = fields.filter((f) => f.required || PRIMARY.has(f.name) || (spec.initial && f.name in spec.initial));
-  const advanced = fields.filter((f) => !primary.includes(f));
+  const contextType = registry.typeForHref(spec.editHref ?? spec.path);
+  const formRepository =
+    contextType?.category === "repositories" && !contextType.parent
+      ? spec.editHref ?? (spec.path !== contextType.list_path ? spec.path.replace(/[^/]+\/$/, "") : undefined)
+      : undefined;
+  const formContext: FormContextValue = {values: state.values, type: contextType, repository: formRepository};
+
+  // Distributions: repository, version and publication are one explicit choice.
+  const sourceFields =
+    contextType?.category === "distributions" && contextType.name !== "pull-through" ? fields.filter((f) => (SOURCES as readonly string[]).includes(f.name) && f.kind.k === "relation") : [];
+  const chooser = sourceFields.length >= 2;
+  const inChooser = (f: FieldDef) => chooser && sourceFields.includes(f);
+  const primary = fields.filter((f) => !inChooser(f) && (f.required || PRIMARY.has(f.name) || (spec.initial && f.name in spec.initial)));
+  const advanced = fields.filter((f) => !inChooser(f) && !primary.includes(f));
 
   const submit = async () => {
     const built = buildBody(fields, state, original);
@@ -519,6 +682,7 @@ function FormBody({spec, onClose}: {spec: FormSpec; onClose: () => void}) {
         <DialogTitle>{spec.title}</DialogTitle>
       </DialogHeader>
       <div className="-mx-4 min-h-0 overflow-y-auto px-4">
+        <FormContext.Provider value={formContext}>
         <form
           className="flex flex-col gap-5 py-1"
           id="schema-form"
@@ -533,6 +697,7 @@ function FormBody({spec, onClose}: {spec: FormSpec; onClose: () => void}) {
           {primary.map((f) => (
             <FieldRow key={f.name} errors={errors} field={f} setState={setState} state={state} />
           ))}
+          {chooser && <SourceChooser errors={errors} fields={sourceFields} plugin={spec.plugin} setState={setState} state={state} />}
           {advanced.length > 0 && (
             <Collapsible open={showAdvanced || advanced.some((f) => errors[f.name])} onOpenChange={setShowAdvanced}>
               <CollapsibleTrigger asChild>
@@ -553,6 +718,7 @@ function FormBody({spec, onClose}: {spec: FormSpec; onClose: () => void}) {
             <p className="text-warning text-sm font-medium">This operation is destructive. Press the button again to confirm.</p>
           )}
         </form>
+        </FormContext.Provider>
       </div>
       <DialogFooter>
         <DialogClose asChild>

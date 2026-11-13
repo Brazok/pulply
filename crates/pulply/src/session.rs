@@ -38,6 +38,9 @@ pub async fn connect(cfg: &ContextConfig, creds: Option<Credentials>, readonly: 
     let ignored_domain = cfg.domain.clone().filter(|d| !status.domain_enabled && d != "default");
     let perms = if has_creds {
         client.get(&client.api_path("login/"), &[]).await?;
+        // Reads then go through a session cookie, far cheaper for the server than Basic
+        // authentication on every request.
+        client.start_session().await;
         if cfg.rbac_filter.unwrap_or(true) { perms::load(&client).await } else { Permissions::default() }
     } else {
         Permissions::default()
@@ -45,11 +48,11 @@ pub async fn connect(cfg: &ContextConfig, creds: Option<Credentials>, readonly: 
     Ok(Connected { client, status, perms, ignored_domain })
 }
 
-fn cache_dir() -> Option<PathBuf> {
+pub(crate) fn cache_dir() -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "pulply").map(|d| d.cache_dir().to_path_buf())
 }
 
-fn digest(parts: &[&str]) -> String {
+pub(crate) fn digest(parts: &[&str]) -> String {
     let mut h = Sha256::new();
     for p in parts {
         h.update(p.as_bytes());

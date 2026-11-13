@@ -6,6 +6,8 @@ import type {ReactNode} from "react";
 import {Badge} from "../components/ui/badge";
 import {HrefLink, PrnLink, StateChip, TimeAgo, Value} from "../components/values";
 import type {Json} from "./api";
+import {useOrigin} from "../components/AddContentHelp";
+import {originHost, pullThroughPath, registryRef} from "./container";
 import {bytes, contentSummary, duration, fieldLabel, nevra, scalarText, taskName, typeTitle} from "./format";
 import type {Registry, ResourceType, Schema} from "./registry";
 
@@ -143,6 +145,20 @@ const TASK_COLUMNS: Column[] = [
   age("Created", "pulp_created"),
 ];
 
+/** Registry path of a container distribution, with the host clients use (see `registryRef`). */
+function RegistryPath({item}: {item: Json}) {
+  const ref = registryRef(item, originHost(useOrigin().origin));
+  return ref ? <span className="font-mono text-xs">{ref}</span> : <Muted />;
+}
+
+const registryColumn: Column = {
+  id: "registry_path",
+  header: "Registry path",
+  fields: ["registry_path", "base_path"],
+  sort: "base_path",
+  render: (i) => <RegistryPath item={i} />,
+};
+
 function pluginColumns(t: ResourceType): Column[] | null {
   const c = t.category;
   const n = t.name;
@@ -165,7 +181,17 @@ function pluginColumns(t: ResourceType): Column[] | null {
       if (c === "content" && n === "tags") return [text("Tag", "name", true), href("Manifest", "tagged_manifest")];
       if (c === "content" && n === "manifests") return [text("Digest", "digest", true), text("Media type", "media_type"), text("Arch", "architecture"), text("OS", "os"), size("compressed_image_size")];
       if (c === "content" && n === "blobs") return [text("Digest", "digest", true)];
-      if (c === "distributions") return [text("Name", "name", true), text("Registry path", "registry_path"), anyHref("Serves", ["repository", "repository_version"]), field("Private", "private")];
+      if (c === "distributions" && n === "pull-through") {
+        // The registry path is in a label; `base_path` is a UUID on pulp_container 2.30+.
+        const path: Column = {
+          id: "__pull_through_path",
+          header: "Registry path",
+          fields: ["base_path", "pulp_labels"],
+          render: (i) => <span className="font-mono text-xs">{`${pullThroughPath(i) ?? "—"}/<image>`}</span>,
+        };
+        return [text("Name", "name", true), path, href("Remote", "remote"), field("Private", "private")];
+      }
+      if (c === "distributions") return [text("Name", "name", true), registryColumn, anyHref("Serves", ["repository", "repository_version"]), field("Private", "private")];
       return null;
     case "file":
       if (c === "content" && n === "files") return [text("Relative path", "relative_path", true), text("SHA-256", "sha256")];
@@ -274,7 +300,7 @@ export function columnsFor(t: ResourceType, schema: Schema | undefined, reg?: Re
 }
 
 /** Copy-paste commands to consume a distribution. */
-export function usageLines(t: ResourceType, item: Json): string[] {
+export function usageLines(t: ResourceType, item: Json, registryHost?: string): string[] {
   if (t.category !== "distributions") return [];
   const raw = str(item.base_url);
   const url = raw && !raw.endsWith("/") ? `${raw}/` : raw;
@@ -283,7 +309,7 @@ export function usageLines(t: ResourceType, item: Json): string[] {
     case "rpm":
       return url ? [`dnf config-manager --add-repo ${url}`, `[${name}]\nbaseurl=${url}\ngpgcheck=0`] : [];
     case "container":
-      return item.registry_path ? [`podman pull ${str(item.registry_path)}:<tag>`] : [];
+      return item.registry_path ? [`podman pull ${registryRef(item, registryHost)}:<tag>`] : [];
     case "file":
       return url ? [`curl ${url}PULP_MANIFEST`] : [];
     case "python":

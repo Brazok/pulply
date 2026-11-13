@@ -40,6 +40,8 @@ import {InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput} from "./
 import {Popover, PopoverContent, PopoverTrigger} from "./ui/popover";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "./ui/select";
 import {Spinner} from "./ui/spinner";
+import {TableSkeletonRows} from "./loading";
+import {cn} from "../lib/utils";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "./ui/table";
 import {UploadDialog} from "./UploadDialog";
 
@@ -397,17 +399,14 @@ export function ResourceList(props: ListProps) {
                 })}
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {!items.length && (
+            <TableBody className={cn("transition-opacity", list.isPlaceholderData && "opacity-60")}>
+              {!items.length && list.isLoading && <TableSkeletonRows columns={columns.length + (selectable ? 1 : 0)} />}
+              {!items.length && !list.isLoading && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="py-10 text-center" colSpan={columns.length + (selectable ? 1 : 0)}>
-                    {list.isLoading ? (
-                      <Spinner className="mx-auto size-5 text-muted-foreground" />
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {Object.keys(filters).length ? "Nothing matches these filters." : "Nothing here yet."}
-                      </span>
-                    )}
+                    <span className="text-sm text-muted-foreground">
+                      {Object.keys(filters).length ? "Nothing matches these filters." : "Nothing here yet."}
+                    </span>
                   </TableCell>
                 </TableRow>
               )}
@@ -445,7 +444,9 @@ export function ResourceList(props: ListProps) {
           </Table>
           <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t px-3 py-2">
             <span className="text-sm text-muted-foreground">
-              {total === 0
+              {list.isLoading
+                ? "Loading…"
+                : total === 0
                 ? "No results"
                 : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total.toLocaleString()}`}
             </span>

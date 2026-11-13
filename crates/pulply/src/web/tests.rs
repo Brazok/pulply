@@ -148,6 +148,13 @@ async fn proxy_relays_requests_with_server_credentials() {
 #[tokio::test]
 async fn readonly_proxy_refuses_mutations_without_sending() {
     let server = pulp().await;
+    // Opening the session cookie (`POST login/`) does not modify Pulp: it is the only POST allowed.
+    Mock::given(method("POST"))
+        .and(path("/pulp/api/v3/login/"))
+        .respond_with(ResponseTemplate::new(401))
+        .with_priority(1)
+        .mount(&server)
+        .await;
     Mock::given(method("POST")).respond_with(ResponseTemplate::new(202)).expect(0).mount(&server).await;
     let st = state(&server, true, "127.0.0.1:8484");
     let (_, body) = connect(&st, "lab", json!({})).await;
@@ -183,6 +190,52 @@ async fn unknown_api_routes_are_not_the_spa() {
     } else {
         assert!(html.contains("no web interface"));
     }
+}
+
+#[tokio::test]
+async fn responses_carry_security_headers() {
+    let server = pulp().await;
+    let st = state(&server, false, "127.0.0.1:8484");
+    for uri in ["/", "/api/info", "/api/nope"] {
+        let resp = router(st.clone()).oneshot(req("GET", uri).body(Body::empty()).unwrap()).await.unwrap();
+        let h = resp.headers();
+        assert_eq!(h[header::X_CONTENT_TYPE_OPTIONS], "nosniff", "{uri}");
+        assert_eq!(h[header::X_FRAME_OPTIONS], "DENY", "{uri}");
+        assert!(h[header::CONTENT_SECURITY_POLICY].to_str().unwrap().contains("frame-ancestors 'none'"), "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn unchanged_storage_state_is_not_sent_again() {
+    let server = pulp().await;
+    let st = state(&server, false, "127.0.0.1:8484");
+    assert_eq!(connect(&st, "lab", json!({})).await.0, StatusCode::OK);
+    let first =
+        router(st.clone()).oneshot(req("GET", "/api/contexts/lab/storage").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    let tag = first.headers()[header::ETAG].clone();
+    let again =
+        req("GET", "/api/contexts/lab/storage").header(header::IF_NONE_MATCH, tag.clone()).body(Body::empty()).unwrap();
+    let resp = router(st.clone()).oneshot(again).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(resp.headers()[header::ETAG], tag);
+    assert!(to_bytes(resp.into_body(), usize::MAX).await.unwrap().is_empty());
+}
+
+#[test]
+fn if_none_match_uses_weak_comparison() {
+    let tag = super::etag(b"{}");
+    assert!(tag.starts_with("W/\""));
+    let with = |v: &str| {
+        let mut h = HeaderMap::new();
+        h.insert(header::IF_NONE_MATCH, v.parse().unwrap());
+        super::not_modified(&h, &tag)
+    };
+    assert!(with(&tag));
+    assert!(with(&format!("\"other\", {}", tag.trim_start_matches("W/"))));
+    assert!(with("*"));
+    assert!(!with("\"other\""));
+    assert!(!super::not_modified(&HeaderMap::new(), &tag));
 }
 
 #[test]

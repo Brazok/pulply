@@ -1,6 +1,8 @@
 # Single-container Pulp (pulp-oci-images) for development and integration tests.
 #   PULP_PORT=8080 docker compose -f deploy/compose.yml up -d
 # API: http://localhost:${PULP_PORT}/pulp/api/v3/  (admin / password)
+# PULP_HOST is the host name Pulp puts in the URLs it hands out (distribution base_url,
+# ansible client_url…): set it to the machine's name or IP when clients are on other machines.
 services:
   pulp:
     image: docker.io/pulp/pulp:latest
@@ -13,9 +15,9 @@ services:
       - pulp_containers:/var/lib/containers
     environment:
       PULP_DEFAULT_ADMIN_PASSWORD: password
-      PULP_CONTENT_ORIGIN: "http://localhost:${PULP_PORT:-8080}"
-      PULP_ANSIBLE_API_HOSTNAME: "http://localhost:${PULP_PORT:-8080}"
-      PULP_ANSIBLE_CONTENT_HOSTNAME: "http://localhost:${PULP_PORT:-8080}/pulp/content"
+      PULP_CONTENT_ORIGIN: "http://${PULP_HOST:-localhost}:${PULP_PORT:-8080}"
+      PULP_ANSIBLE_API_HOSTNAME: "http://${PULP_HOST:-localhost}:${PULP_PORT:-8080}"
+      PULP_ANSIBLE_CONTENT_HOSTNAME: "http://${PULP_HOST:-localhost}:${PULP_PORT:-8080}/pulp/content"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost/pulp/api/v3/status/"]
       interval: 10s

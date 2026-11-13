@@ -2,22 +2,28 @@
 // overview, content, nested collections, relations, roles and raw JSON.
 
 import {useQueryClient} from "@tanstack/react-query";
-import {Copy, Ellipsis, Globe, Pencil, RefreshCw, Rocket, Trash2, Undo2, CloudUpload} from "lucide-react";
+import {Copy, Ellipsis, Globe, Lightbulb, Pencil, Plus, Send, RefreshCw, Rocket, Trash2, Undo2, CloudUpload} from "lucide-react";
 import {type ReactNode, useState} from "react";
 import {useNavigate} from "react-router";
 import {toast} from "sonner";
 
 import type {Json} from "../../lib/api";
 import {usageLines} from "../../lib/columns";
+import {originHost, pullThroughPath} from "../../lib/container";
 import {displayName, fieldLabel, pluginLabel, singular, titleize, typeLabel, typeTitle} from "../../lib/format";
 import {type Action, type ResourceType, versionNumber, versionRepository} from "../../lib/registry";
 import {useMode} from "../../lib/mode";
-import {base, itemUrl, listUrl} from "../../lib/routes";
+import {adminSection} from "../../lib/nav";
+import {adminUrl, base, itemUrl, listUrl} from "../../lib/routes";
 import {errorText, usePulp, useSession} from "../../lib/session";
+import {cn} from "../../lib/utils";
+import {CopyButton, copyText} from "../CopyButton";
 import {ConfirmDialog, ResultDialog} from "../dialogs";
+import {DetailSkeleton} from "../loading";
 import {type Crumb, PageHeader} from "../PageHeader";
 import {ResourceList} from "../ResourceList";
 import {type FormSpec, FormModal} from "../SchemaForm";
+import {AddContentHelp, hasAddContentHelp, useOrigin} from "../AddContentHelp";
 import {UploadDialog} from "../UploadDialog";
 import {Badge} from "../ui/badge";
 import {Button} from "../ui/button";
@@ -31,11 +37,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import {Spinner} from "../ui/spinner";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "../ui/tabs";
-import {Tooltip, TooltipContent, TooltipTrigger} from "../ui/tooltip";
-import {JsonView, Value} from "../values";
+import {HrefLink, JsonView, Value} from "../values";
 import {ContentSummary} from "./ContentSummary";
+import {PullThroughMap} from "./PullThroughMap";
+import {RelationMap, hasRelationMap} from "./RelationMap";
 import {RolesPanel} from "./RolesPanel";
 
 /** Actions with their own button or view. */
@@ -51,24 +57,66 @@ function isEmpty(v: unknown): boolean {
   return typeof v === "object" && Object.keys(v as object).length === 0;
 }
 
-export function CopyButton({text, label = "Copy"}: {text: string; label?: string}) {
+/** A pull-through distribution: its remote, where clients pull, and how many images it cached. */
+function PullThroughServed({item}: {item: Json}) {
+  const {origin} = useOrigin();
+  const remote = typeof item.remote === "string" ? item.remote : null;
+  const cached = Array.isArray(item.distributions) ? item.distributions.length : 0;
+  const path = pullThroughPath(item);
+  const prefix = origin && path ? `${new URL(origin).host}/${path}/` : null;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={label}
-          size="icon-xs"
-          variant="ghost"
-          onClick={async () => {
-            await navigator.clipboard.writeText(text);
-            toast.success("Copied to the clipboard", {duration: 1500});
-          }}
-        >
-          <Copy />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <div className={cn("flex flex-col gap-2 rounded-lg border px-4 py-3 text-sm", remote ? "bg-primary/5" : "bg-warning/10")}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Send className="size-4 text-primary" />
+        {remote ? (
+          <>
+            <span>Caches the images pulled through</span>
+            <HrefLink className="font-medium" href={remote} />
+          </>
+        ) : (
+          <span>No remote: edit it to pick the pull-through remote images come from.</span>
+        )}
+        <span className="ms-auto text-xs text-muted-foreground">
+          {cached ? `${cached} image${cached > 1 ? "s" : ""} cached so far (Map tab)` : "Nothing pulled yet"}
+        </span>
+      </div>
+      {prefix && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+          <span>Clients pull</span>
+          <span className="font-mono text-xs text-foreground">
+            {prefix}
+            <span className="text-muted-foreground">{"<image>:<tag>"}</span>
+          </span>
+          <CopyButton label="Copy the registry prefix" text={prefix} />
+          <span className="text-xs">after a login (Map tab for the commands)</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What a distribution serves: one of repository (latest version), version, publication, or nothing. */
+function ServedBy({item, type}: {item: Json; type: ResourceType}) {
+  const {registry} = useSession();
+  if (type.name === "pull-through") return <PullThroughServed item={item} />;
+  const schema = registry.schema(type.read_schema);
+  const fields = ["repository", "repository_version", "publication"].filter((f) => f in (schema?.properties ?? {}));
+  if (fields.length < 2) return null;
+  const str = (k: string) => (typeof item[k] === "string" && item[k] ? (item[k] as string) : null);
+  const [text, href] = str("publication")
+    ? ["Serves the publication", str("publication")]
+    : str("repository_version")
+      ? ["Serves the fixed version", str("repository_version")]
+      : str("repository")
+        ? ["Serves the latest version of", str("repository")]
+        : ["Serves nothing yet: edit it to pick a repository, a version or a publication.", null];
+  return (
+    <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-4 py-3 text-sm", href ? "bg-primary/5" : "bg-warning/10")}>
+      <Send className="size-4 text-primary" />
+      <span>{text}</span>
+      {href && <HrefLink className="font-medium" href={href} />}
+      <span className="ms-auto text-xs text-muted-foreground">One source at a time: repository, version or publication.</span>
+    </div>
   );
 }
 
@@ -111,6 +159,8 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
   const queryClient = useQueryClient();
   const query = usePulp(href);
   const item = query.data;
+  // Content origin: the host clients pull container images from (status, cached).
+  const {origin} = useOrigin();
   const hasPerms = !!type?.actions.some((a) => a.verb === "my_permissions");
   const objectPermsQuery = usePulp<{permissions: string[]}>(
     hasPerms && info.access !== "all" ? `${href}my_permissions/` : null,
@@ -125,9 +175,10 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
   const [confirm, setConfirm] = useState<{title: string; body?: ReactNode; danger?: boolean; run: () => Promise<unknown>} | null>(null);
   const [result, setResult] = useState<{title: string; value: unknown} | null>(null);
   const [upload, setUpload] = useState(false);
+  const [help, setHelp] = useState(false);
   const [tab, setTab] = useState<string>("overview");
 
-  if (query.isLoading) return <Spinner className="m-10 size-6" />;
+  if (query.isLoading) return <DetailSkeleton />;
   if (query.error || !item) {
     return <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">{errorText(query.error ?? "Not found")}</div>;
   }
@@ -212,6 +263,42 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
       submitLabel: "Create distribution",
     });
   };
+  // From a remote, the next step: a repository synced from it (any variant, e.g. git), or for a
+  // pull-through remote a pull-through distribution (Pulp refuses it on a repository).
+  const isRemote = type?.category === "remotes" && !type.parent;
+  const pullThroughDist =
+    isRemote && type.name === "pull-through"
+      ? registry.types.find((t) => t.category === "distributions" && t.plugin === plugin && t.name === "pull-through" && t.ops.create)
+      : undefined;
+  const nextFromRemote = pullThroughDist ?? (isRemote ? registry.pluginType("repositories", plugin) : undefined);
+  const fromRemote = () => {
+    if (!nextFromRemote) return;
+    const baseName = (displayName(item, href) || "repository").replace(/[@\s]/g, "-");
+    const isDist = nextFromRemote === pullThroughDist;
+    setForm({
+      title: isDist ? `New pull-through distribution for ${name}` : `New ${typeLabel(nextFromRemote).toLowerCase()} from ${name}`,
+      label: isDist ? `Create distribution ${baseName}` : `Create repository ${baseName}`,
+      method: "POST",
+      path: nextFromRemote.list_path!,
+      schema: registry.schema(nextFromRemote.create_schema),
+      plugin,
+      initial: isDist ? {name: baseName, base_path: baseName, remote: href} : {name: baseName, remote: href},
+      intro: isDist ? (
+        <p className="text-sm text-muted-foreground">
+          Images pulled through <span className="font-mono">{"<registry>/" + baseName + "/<upstream name>"}</span> are fetched from the remote
+          and cached; Pulp creates their repositories and distributions by itself.
+        </p>
+      ) : undefined,
+      submitLabel: isDist ? "Create distribution" : "Create repository",
+      onDone: (resp) => {
+        const created = (resp as Json)?.pulp_href;
+        if (typeof created === "string") {
+          toast.success("Repository created: Sync it to fetch the content", {duration: 5000});
+          navigate(itemUrl(ctx, created));
+        }
+      },
+    });
+  };
   const edit = () =>
     type &&
     setForm({
@@ -254,18 +341,21 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
   const canDelete = !!type?.ops.delete && allowed("delete");
 
   const crumbs: Crumb[] = [{label: "Home", to: base(ctx)}];
+  const admin = type && adminSection(registry, ctx, type.id);
+  if (admin) crumbs.push({label: "Administration", to: adminUrl(ctx)});
   if (repoOfVersion && parentType) {
     crumbs.push({label: typeTitle(parentType), to: listUrl(ctx, parentType.id)});
     crumbs.push({label: displayName(owningRepo.data, repoOfVersion), to: itemUrl(ctx, repoOfVersion)});
   } else if (type?.list_path) crumbs.push({label: typeTitle(type), to: listUrl(ctx, type.id)});
   crumbs.push({label: name});
 
-  const usage = type ? usageLines(type, item) : [];
+  const usage = type ? usageLines(type, item, originHost(origin)) : [];
   const children = (type?.children ?? []).map((c) => registry.get(c)).filter((c): c is ResourceType => !!c);
   const versionHref = version !== null ? href : isRepository ? (item.latest_version_href as string | undefined) : undefined;
   const genericContent = registry.get("content");
   const hasRoles = !!type?.actions.some((a) => a.verb === "list_roles");
   const pubsType = registry.get("publications");
+  const showMap = hasRelationMap(type, version !== null);
   const distsType = registry.get("distributions");
 
   return (
@@ -283,6 +373,18 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
               <Button variant="outline" onClick={() => setUpload(true)}>
                 <CloudUpload />
                 Upload
+              </Button>
+            )}
+            {nextFromRemote && can("add", nextFromRemote) && (
+              <Button variant="outline" onClick={fromRemote}>
+                <Plus />
+                {nextFromRemote === pullThroughDist ? "New pull-through distribution" : "New repository"}
+              </Button>
+            )}
+            {isRepository && hasAddContentHelp(registry, plugin) && (
+              <Button variant="outline" onClick={() => setHelp(true)}>
+                <Lightbulb />
+                How to add content
               </Button>
             )}
             {pubType && can("add", pubType) && (
@@ -349,7 +451,7 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
                     Refresh
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onSelect={() => void navigator.clipboard.writeText(href).then(() => toast.success("Href copied", {duration: 1500}))}
+                    onSelect={() => void copyText(href, "Href copied")}
                   >
                     <Copy />
                     Copy href
@@ -394,6 +496,7 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
         <div className="overflow-x-auto border-b">
           <TabsList aria-label="Sections" variant="line">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            {showMap && <TabsTrigger value="map">Map</TabsTrigger>}
             {versionHref && genericContent && <TabsTrigger value="content">Content</TabsTrigger>}
             {children.map((c) => (
               <TabsTrigger key={c.id} value={`child:${c.id}`}>
@@ -407,6 +510,7 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
         </div>
 
         <TabsContent className="flex flex-col gap-4 pt-2" value="overview">
+          {type?.category === "distributions" && !type.parent && <ServedBy item={item} type={type} />}
           {usage.length > 0 && (
             <Section title="How to use it">
               <ul className="flex flex-col gap-2">
@@ -429,6 +533,15 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
           </Section>
         </TabsContent>
 
+        {showMap && (
+          <TabsContent className="pt-2" value="map">
+            {type?.name === "pull-through" && !type.parent ? (
+              <PullThroughMap href={href} item={item} type={type} />
+            ) : (
+              <RelationMap href={href} isVersion={version !== null} item={item} type={type} />
+            )}
+          </TabsContent>
+        )}
         {versionHref && genericContent && (
           <TabsContent className="pt-2" value="content">
             <ResourceList
@@ -484,6 +597,7 @@ export function ResourceDetail({href, type}: {href: string; type: ResourceType |
       </ConfirmDialog>
       <ResultDialog title={result?.title ?? ""} value={result?.value ?? null} onClose={() => setResult(null)} />
       {upload && <UploadDialog repository={href} onClose={() => setUpload(false)} />}
+      {help && <AddContentHelp plugin={plugin} repository={{href, item}} onClose={() => setHelp(false)} />}
     </div>
   );
 }

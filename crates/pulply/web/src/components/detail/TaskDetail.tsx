@@ -18,6 +18,7 @@ import {Card, CardAction, CardContent, CardHeader, CardTitle} from "../ui/card";
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "../ui/collapsible";
 import {Progress} from "../ui/progress";
 import {Spinner} from "../ui/spinner";
+import {DetailSkeleton} from "../loading";
 import {HrefLink, JsonView, PrnLink, StateChip, TimeAgo} from "../values";
 
 const ACTIVE = new Set(["waiting", "running", "canceling"]);
@@ -33,7 +34,7 @@ export function TaskDetail({href}: {href: string}) {
   });
   const [cancel, setCancel] = useState(false);
   const t = task.data;
-  if (task.isLoading) return <Spinner className="m-10 size-6" />;
+  if (task.isLoading) return <DetailSkeleton />;
   if (task.error || !t) return <p className="text-sm text-destructive">{errorText(task.error)}</p>;
 
   const state = String(t.state);

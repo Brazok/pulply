@@ -3,7 +3,7 @@
 
 import {categoryLabel, pluginLabel, typeLabel} from "./format";
 import {PLUGIN_CATEGORIES, type Registry, type ResourceType} from "./registry";
-import {base, listUrl} from "./routes";
+import {adminUrl, base, listUrl} from "./routes";
 
 export interface NavItem {
   id: string;
@@ -24,21 +24,54 @@ export interface NavGroup {
 }
 
 const CATEGORY_ORDER = [...PLUGIN_CATEGORIES, "other"];
-const ADMIN_ORDER = [
-  "users",
-  "groups",
-  "roles",
-  "access_policies",
-  "domains",
-  "upstream-pulps",
-  "signing-services",
-  "task-schedules",
-  "task-groups",
-  "workers",
-  "artifacts",
-  "uploads",
-  "repository_versions",
+
+/** Administration, by theme. Core types not listed here end up in "Other". */
+export interface AdminSection {
+  id: string;
+  label: string;
+  description: string;
+  items: NavItem[];
+}
+
+const ADMIN_SECTIONS: {id: string; label: string; description: string; types: string[]}[] = [
+  {
+    id: "access",
+    label: "Access control",
+    description: "Who can sign in, and what each user may see and do.",
+    types: ["users", "groups", "roles", "access_policies", "domains"],
+  },
+  {
+    id: "server",
+    label: "Server",
+    description: "Workers, scheduled work, replication, signing and server-wide operations.",
+    types: ["workers", "task-schedules", "task-groups", "upstream-pulps", "signing-services", "operations"],
+  },
+  {
+    id: "storage",
+    label: "Storage",
+    description: "Files and versions kept by the server.",
+    types: ["storage", "artifacts", "uploads", "repository_versions"],
+  },
 ];
+
+/** What each administration page holds (sidebar tooltips, administration page, list subtitles). */
+export const ADMIN_DESCRIPTIONS: Record<string, string> = {
+  users: "Accounts that can sign in to the API.",
+  groups: "Sets of users sharing the same roles.",
+  roles: "Named sets of permissions, given to users and groups.",
+  access_policies: "Rules deciding who may call each endpoint.",
+  domains: "Isolated tenants, each with its own content and storage.",
+  workers: "Processes running the tasks.",
+  "task-schedules": "Tasks the server runs periodically.",
+  "task-groups": "Tasks started together and followed as one.",
+  "upstream-pulps": "Other Pulp servers replicated into this one.",
+  "signing-services": "Scripts signing metadata and packages.",
+  operations: "Orphan cleanup, storage repair, task purge…",
+  storage: "Space used by each plugin and repository, and what can be reclaimed.",
+  artifacts: "Files stored by the server, by checksum.",
+  uploads: "Chunked uploads not yet turned into content.",
+  repository_versions: "Every version of every repository.",
+};
 
 function order(t: ResourceType): number {
   const i = CATEGORY_ORDER.indexOf(t.category);
@@ -63,16 +96,15 @@ export function simplifyNav(nav: ReturnType<typeof buildNav>): ReturnType<typeof
       const items = kept.filter((i) => !i.variant || !kept.some((o) => o.category === i.category && !o.variant));
       return {...g, items};
     })
-    .filter((g) => g.items.length > 0);
-  return {overview: nav.overview.filter((i) => i.id !== "operations"), plugins, platform: [], admin: []};
+    .filter((g) => g.id !== "core" && g.items.length > 0);
+  return {overview: nav.overview, plugins, platform: [], admin: []};
 }
 
-export function buildNav(reg: Registry, ctx: string) {
+export function buildNav(reg: Registry, ctx: string): {overview: NavItem[]; plugins: NavGroup[]; platform: NavItem[]; admin: AdminSection[]} {
   const top = reg.topLevel().filter((t) => t.list_path);
   const overview: NavItem[] = [
     {id: "dashboard", label: "Dashboard", to: base(ctx)},
     {id: "tasks", label: "Tasks", to: listUrl(ctx, "tasks")},
-    {id: "operations", label: "Maintenance", to: `${base(ctx)}/operations`},
   ];
   const plugins: NavGroup[] = reg.plugins().map((plugin) => ({
     id: plugin,
@@ -82,25 +114,39 @@ export function buildNav(reg: Registry, ctx: string) {
       .sort((a, b) => order(a) - order(b) || typeLabel(a).localeCompare(typeLabel(b)))
       .map((t) => item(ctx, t)),
   }));
-  // Cross-plugin lists and core types of plugin categories (RBAC guards, Pulp exporters…).
-  const platform: NavItem[] = [
-    ...top.filter((t) => t.generic).sort((a, b) => order(a) - order(b)).map((t) => item(ctx, t, `All ${categoryLabel(t.id).toLowerCase()}`)),
-    ...top
-      .filter((t) => !t.generic && t.plugin === "core" && PLUGIN_CATEGORIES.includes(t.category))
-      .sort((a, b) => order(a) - order(b))
-      .map((t) => item(ctx, t)),
-  ];
+  // Cross-plugin lists (every repository, remote… whatever its plugin).
+  const platform: NavItem[] = top
+    .filter((t) => t.generic)
+    .sort((a, b) => order(a) - order(b))
+    .map((t) => ({...item(ctx, t, categoryLabel(t.id)), category: t.id}));
+  // Core types of plugin categories (OpenPGP keyrings, Pulp exporters…): a plugin group of their own.
+  const coreItems = top
+    .filter((t) => !t.generic && t.plugin === "core" && PLUGIN_CATEGORIES.includes(t.category))
+    .sort((a, b) => order(a) - order(b) || typeLabel(a).localeCompare(typeLabel(b)))
+    .map((t) => item(ctx, t));
+  if (coreItems.length) plugins.push({id: "core", label: "Pulp core", items: coreItems});
   const adminTypes = top.filter(
     (t) => t.plugin === "core" && !t.generic && !PLUGIN_CATEGORIES.includes(t.category) && t.id !== "tasks",
   );
-  const admin = adminTypes
-    .sort((a, b) => {
-      const ia = ADMIN_ORDER.indexOf(a.id);
-      const ib = ADMIN_ORDER.indexOf(b.id);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.id.localeCompare(b.id);
-    })
-    .map((t) => item(ctx, t));
-  return {overview, plugins, platform, admin};
+  // Administration pages that are not resource lists.
+  const pages: Record<string, NavItem> = {
+    operations: {id: "operations", label: "Maintenance", to: `${base(ctx)}/operations`},
+    storage: {id: "storage", label: "Disk usage", to: `${base(ctx)}/storage`},
+  };
+  const admin: AdminSection[] = ADMIN_SECTIONS.map(({types, ...section}) => ({
+    ...section,
+    items: types.flatMap((id) => {
+      if (pages[id]) return [pages[id]];
+      const t = adminTypes.find((a) => a.id === id);
+      return t ? [item(ctx, t)] : [];
+    }),
+  }));
+  const known = ADMIN_SECTIONS.flatMap((s) => s.types);
+  const other = adminTypes.filter((t) => !known.includes(t.id)).sort((a, b) => a.id.localeCompare(b.id));
+  if (other.length) {
+    admin.push({id: "other", label: "Other", description: "Further server resources.", items: other.map((t) => item(ctx, t))});
+  }
+  return {overview, plugins, platform, admin: admin.filter((s) => s.items.length > 0)};
 }
 
 /** Every destination, for the command palette. */
@@ -109,8 +155,14 @@ export function allDestinations(reg: Registry, ctx: string): NavItem[] {
   return [
     ...nav.overview,
     ...nav.plugins.flatMap((g) => g.items.map((i) => ({...i, label: `${g.label} · ${i.label}`, hint: g.label}))),
-    ...nav.platform.map((i) => ({...i, hint: "Platform"})),
-    ...nav.admin.map((i) => ({...i, hint: "Administration"})),
+    ...nav.platform.map((i) => ({...i, label: `All ${i.label.toLowerCase()}`, hint: "All plugins"})),
+    {id: "admin", label: "Administration", to: adminUrl(ctx)},
+    ...nav.admin.flatMap((s) => s.items.map((i) => ({...i, hint: `Administration · ${s.label}`}))),
     {id: "me", label: "My account & permissions", to: `${base(ctx)}/me`},
   ];
+}
+
+/** Administration section holding a type (or `operations`), if any. */
+export function adminSection(reg: Registry, ctx: string, id: string): AdminSection | undefined {
+  return buildNav(reg, ctx).admin.find((s) => s.items.some((i) => i.id === id));
 }

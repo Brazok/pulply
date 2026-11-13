@@ -2,23 +2,47 @@
 // renders the application shell and its pages.
 
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {Suspense, lazy, useEffect} from "react";
 import {Route, Routes, useNavigate, useParams} from "react-router";
 
 import {Center, ErrorScreen, PasswordScreen, TokenScreen} from "./components/screens";
+import {Delayed, PageSpinner} from "./components/loading";
 import {Shell} from "./components/Shell";
 import {Button} from "./components/ui/button";
 import {ApiError, hasToken, json} from "./lib/api";
 import type {RegistryExport} from "./lib/registry";
 import {type SessionInfo, SessionProvider, connect, errorText, useContexts} from "./lib/session";
 import {Dashboard} from "./pages/Dashboard";
-import {ItemPage} from "./pages/ItemPage";
-import {ListPage} from "./pages/ListPage";
-import {MePage} from "./pages/MePage";
-import {OperationsPage} from "./pages/OperationsPage";
+
+// The other pages are separate chunks: the first screen parses less code, and they are
+// fetched in the background once it is up, so that opening them stays instant.
+const chunks = {
+  admin: () => import("./pages/AdminPage"),
+  item: () => import("./pages/ItemPage"),
+  list: () => import("./pages/ListPage"),
+  me: () => import("./pages/MePage"),
+  operations: () => import("./pages/OperationsPage"),
+  storage: () => import("./pages/StoragePage"),
+};
+const AdminPage = lazy(() => chunks.admin().then((m) => ({default: m.AdminPage})));
+const ItemPage = lazy(() => chunks.item().then((m) => ({default: m.ItemPage})));
+const ListPage = lazy(() => chunks.list().then((m) => ({default: m.ListPage})));
+const MePage = lazy(() => chunks.me().then((m) => ({default: m.MePage})));
+const OperationsPage = lazy(() => chunks.operations().then((m) => ({default: m.OperationsPage})));
+const StoragePage = lazy(() => chunks.storage().then((m) => ({default: m.StoragePage})));
+
+function usePrefetchPages() {
+  useEffect(() => {
+    const load = () => Object.values(chunks).forEach((c) => void c().catch(() => undefined));
+    const idle = window.requestIdleCallback?.(load) ?? window.setTimeout(load, 1_000);
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(idle) : window.clearTimeout(idle));
+  }, []);
+}
 
 export function ContextRoot() {
   const ctx = decodeURIComponent(useParams().ctx ?? "");
   const navigate = useNavigate();
+  usePrefetchPages();
   const queryClient = useQueryClient();
   const contexts = useContexts();
   const context = contexts.data?.contexts.find((c) => c.name === ctx);
@@ -96,23 +120,30 @@ export function ContextRoot() {
   if (!session.data || !registry.data) {
     return (
       <Center>
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Center loading />
-          <span className="text-sm">{session.data ? "Reading the server's API schema…" : `Connecting to ${context.base_url}…`}</span>
-        </div>
+        <PageSpinner label={session.data ? "Reading the server's API schema…" : `Connecting to ${context.base_url}…`} />
       </Center>
     );
   }
   return (
     <SessionProvider key={ctx} contexts={contexts.data} ctx={ctx} info={session.data} registry={registry.data}>
       <Shell>
-        <Routes>
-          <Route index element={<Dashboard />} />
-          <Route element={<ListPage />} path="browse/*" />
-          <Route element={<ItemPage />} path="item" />
-          <Route element={<OperationsPage />} path="operations" />
-          <Route element={<MePage />} path="me" />
-        </Routes>
+        <Suspense
+          fallback={
+            <Delayed>
+              <PageSpinner />
+            </Delayed>
+          }
+        >
+          <Routes>
+            <Route index element={<Dashboard />} />
+            <Route element={<ListPage />} path="browse/*" />
+            <Route element={<AdminPage />} path="admin" />
+            <Route element={<OperationsPage />} path="operations" />
+            <Route element={<StoragePage />} path="storage" />
+            <Route element={<MePage />} path="me" />
+            <Route element={<ItemPage />} path="*" />
+          </Routes>
+        </Suspense>
       </Shell>
     </SessionProvider>
   );

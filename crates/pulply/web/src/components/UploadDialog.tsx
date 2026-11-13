@@ -6,10 +6,11 @@ import {CloudUpload} from "lucide-react";
 import {useState} from "react";
 
 import {type Json, json, request} from "../lib/api";
-import {bytes, typeTitle} from "../lib/format";
+import {bytes, pluginLabel, typeTitle} from "../lib/format";
 import type {ResourceType} from "../lib/registry";
 import {errorText, useSession} from "../lib/session";
 import {cn} from "../lib/utils";
+import {AddContentHelp, helpPlugins} from "./AddContentHelp";
 import {HrefPicker} from "./HrefPicker";
 import {Button} from "./ui/button";
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "./ui/dialog";
@@ -48,6 +49,9 @@ export function UploadDialog({
   const [items, setItems] = useState<Item[]>([]);
   const [running, setRunning] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [help, setHelp] = useState<string | null>(null);
+  // Plugins whose content is added another way (only offered when no plugin is imposed).
+  const others = initialType || fixedRepo ? [] : helpPlugins(registry);
 
   const add = (files: FileList | null) => {
     if (!files) return;
@@ -172,6 +176,25 @@ export function UploadDialog({
                 ))}
               </ul>
             )}
+            {others.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {others.map((p, i) => (
+                  <span key={p}>
+                    {i > 0 && " and "}
+                    {pluginLabel(p)}
+                  </span>
+                ))}{" "}
+                content cannot be uploaded as files.{" "}
+                {others.map((p, i) => (
+                  <span key={p}>
+                    {i > 0 && " · "}
+                    <button className="text-primary hover:underline" type="button" onClick={() => setHelp(p)}>
+                      How to add {pluginLabel(p)} content
+                    </button>
+                  </span>
+                ))}
+              </p>
+            )}
         </div>
         <DialogFooter>
           <Button disabled={running} variant="outline" onClick={onClose}>
@@ -185,6 +208,7 @@ export function UploadDialog({
           )}
         </DialogFooter>
       </DialogContent>
+      {help && <AddContentHelp plugin={help} onClose={() => setHelp(null)} />}
     </Dialog>
   );
 }

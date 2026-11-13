@@ -1,18 +1,27 @@
-import {Navigate, useSearchParams} from "react-router";
+import {Navigate, useLocation, useParams, useSearchParams} from "react-router";
 
 import {ResourceDetail} from "../components/detail/ResourceDetail";
 import {TaskDetail} from "../components/detail/TaskDetail";
 import {hrefPath} from "../lib/api";
-import {base, listUrl} from "../lib/routes";
+import {base, hrefOfPath, itemUrl, listUrl} from "../lib/routes";
 import {useSession} from "../lib/session";
 
-/** `/item?href=<pulp href>`: a task, a list URL, or any resource. */
+/**
+ * `/c/<ctx>/<href without the API prefix>`: a task, a list URL, or any resource.
+ * The former `/item?href=<pulp href>` redirects there.
+ */
 export function ItemPage() {
   const [params] = useSearchParams();
-  const {registry, ctx} = useSession();
-  const raw = params.get("href");
-  if (!raw) return <Navigate replace to={base(ctx)} />;
-  const href = hrefPath(raw);
+  const rest = useParams()["*"] ?? "";
+  const location = useLocation();
+  const {registry, ctx, info} = useSession();
+  const legacy = params.get("href");
+  if (rest === "item" || rest === "item/") {
+    return <Navigate replace to={legacy ? itemUrl(ctx, legacy) : base(ctx)} />;
+  }
+  const fromPath = hrefOfPath(rest, info.api_prefix);
+  if (!fromPath) return <Navigate replace to={base(ctx)} />;
+  const href = hrefPath(fromPath + location.search);
   const type = registry.typeForHref(href);
   // An href to a list (`…/versions/`, `…/content/?repository_version=`) opens the list.
   const [path, query] = href.split("?", 2);
