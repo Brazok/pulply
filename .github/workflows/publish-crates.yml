@@ -7,6 +7,8 @@ on:
       plan:
         required: true
         type: string
+  # Manual run, e.g. to finish a release whose publish step failed.
+  workflow_dispatch:
 
 jobs:
   crates:
@@ -27,6 +29,16 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run build
-      - run: cargo publish --locked -p pulply-api
-      # web/dist is gitignored but shipped through `include`, so cargo sees it as uncommitted.
-      - run: cargo publish --locked -p pulply --allow-dirty
+      # Skips crates whose version is already on crates.io, so a rerun only publishes what's missing.
+      # web/dist is gitignored but shipped through `include`, so cargo sees it as uncommitted (--allow-dirty).
+      - name: Publish pulply-api, then pulply
+        run: |
+          for crate in pulply-api pulply; do
+            version=$(cargo metadata --no-deps --format-version 1 | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')
+            status=$(curl -s -o /dev/null -w '%{http_code}' -A 'pulply-release-ci' "https://crates.io/api/v1/crates/$crate/$version")
+            if [ "$status" = 200 ]; then
+              echo "$crate $version is already on crates.io, skipping"
+              continue
+            fi
+            cargo publish --locked --allow-dirty -p "$crate"
+          done
