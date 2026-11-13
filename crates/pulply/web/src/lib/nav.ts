@@ -66,7 +66,7 @@ export const ADMIN_DESCRIPTIONS: Record<string, string> = {
   "task-groups": "Tasks started together and followed as one.",
   "upstream-pulps": "Other Pulp servers replicated into this one.",
   "signing-services": "Scripts signing metadata and packages.",
-  operations: "Orphan cleanup, storage repair, task purge…",
+  operations: "Orphan cleanup, task purge, storage repair and space reclaim, in one click.",
   storage: "Space used by each plugin and repository, and what can be reclaimed.",
   artifacts: "Files stored by the server, by checksum.",
   uploads: "Chunked uploads not yet turned into content.",

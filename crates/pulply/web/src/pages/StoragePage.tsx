@@ -9,6 +9,7 @@ import {ChevronRight, CircleAlert, HardDrive, Package, Play, RefreshCw, Square, 
 import {type ReactNode, useState} from "react";
 import {Link} from "react-router";
 
+import {OrphanCleanupDialog, useCount, useRunning} from "../components/maintenance";
 import {PageHeader} from "../components/PageHeader";
 import {Badge} from "../components/ui/badge";
 import {Button} from "../components/ui/button";
@@ -19,6 +20,7 @@ import {Skeleton} from "../components/ui/skeleton";
 import {Tooltip, TooltipContent, TooltipTrigger} from "../components/ui/tooltip";
 import type {Json} from "../lib/api";
 import {bytes, pluginLabel, relativeTime, typeTitle} from "../lib/format";
+import {MAINTENANCE} from "../lib/maintenance";
 import {adminUrl, base, itemUrl, listUrl} from "../lib/routes";
 import {useSession} from "../lib/session";
 import {type Report, type Usage, scanRatio, useStorageScan} from "../lib/storage";
@@ -31,17 +33,6 @@ const share = (part: number, whole: number) => {
 };
 const files = (n: number) => `${n.toLocaleString()} file${n === 1 ? "" : "s"}`;
 const duration = (s: number) => (s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
-
-/** `count` of a list endpoint (one row fetched: instant on any server). */
-function useCount(path: string | undefined, params: Record<string, string | number> = {}) {
-  const {pulp, ctx} = useSession();
-  return useQuery({
-    queryKey: ["pulp", ctx, "count", path, params],
-    queryFn: async () => (await pulp.list(path!, {...params, limit: 1})).count,
-    enabled: !!path,
-    retry: false,
-  }).data;
-}
 
 function Tile({icon, label, value, detail, tone = "default", children}: {
   icon: ReactNode;
@@ -329,7 +320,9 @@ function ScanPanel() {
 }
 
 export function StoragePage() {
-  const {pulp, info, ctx, refresh} = useSession();
+  const {pulp, info, ctx, refresh, readonly, registry} = useSession();
+  const [cleanup, setCleanup] = useState(false);
+  const cleaning = useRunning(MAINTENANCE.orphans);
   const status = useQuery({queryKey: ["pulp", ctx, "status"], queryFn: () => pulp.get(info.status_path), refetchInterval: refresh * 3});
   const {state} = useStorageScan(ctx);
   const report = state.data?.report;
@@ -371,9 +364,15 @@ export function StoragePage() {
             orphanArtifacts === undefined ? undefined : orphanArtifacts || orphanContent ? (
               <>
                 {files(orphanArtifacts)} and {(orphanContent ?? 0).toLocaleString()} content units no repository uses.{" "}
-                <Link className="text-primary hover:underline" to={`${base(ctx)}/operations`}>
-                  Clean up orphans…
-                </Link>
+                {MAINTENANCE.orphans in registry.operations && !readonly ? (
+                  <Button className="h-auto p-0" disabled={cleaning} variant="link" onClick={() => setCleanup(true)}>
+                    {cleaning ? "Cleanup running…" : "Clean up…"}
+                  </Button>
+                ) : (
+                  <Link className="text-primary hover:underline" to={`${base(ctx)}/operations`}>
+                    Maintenance…
+                  </Link>
+                )}
               </>
             ) : (
               "Nothing to clean up."
@@ -387,6 +386,7 @@ export function StoragePage() {
       </div>
 
       <ScanPanel />
+      <OrphanCleanupDialog isOpen={cleanup} onOpenChange={setCleanup} />
     </div>
   );
 }
