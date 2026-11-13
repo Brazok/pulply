@@ -106,8 +106,8 @@ function PullCommands({
       </div>
       <ul className="flex list-disc flex-col gap-1 ps-5 text-xs text-muted-foreground">
         <li>
-          Log in with a Pulp user: Pulp answers <span className="font-mono">not found</span> to anonymous pulls through a pull-through cache, even
-          when the distribution is public.
+          Log in with a Pulp user to pull an image not cached yet: Pulp never fills the cache for anonymous clients, even through a public
+          distribution. Once cached, an image of a public distribution can be pulled without login (but is then not refreshed from upstream).
         </li>
         {insecure && (
           <li>

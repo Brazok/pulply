@@ -212,6 +212,13 @@ The token is random at each start, or fixed with `--token` / `PULPLY_WEB_TOKEN`.
 make            # formatting, clippy, Rust and web tests, release build (`make help` for the rest)
 make pulp-up    # local Pulp on :8080 (admin / password)
 make pulp-up PULP_HOST=192.168.1.10   # same, with download URLs reachable from other machines
+```
+
+The local Pulp's registry uses token authentication, so `docker login` works and pull-through
+caches can be filled (`docker login <host>:<port>` then `docker pull <host>:<port>/<path>/<image>`).
+`PULP_TOKEN_AUTH_DISABLED=true make pulp-up` goes back to Basic authentication only.
+
+```sh
 make serve ARGS="--context lab"
 ```
 
