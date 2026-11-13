@@ -78,6 +78,8 @@ pub struct ListView {
     /// Nested collection created through its parent's POST action (group members,
     /// user roles): request body schema.
     nested_create: Option<String>,
+    /// The nested create endpoint only accepts `multipart/form-data`.
+    nested_multipart: bool,
 }
 
 enum Pick {
@@ -134,6 +136,7 @@ impl ListView {
             type_id: t.map(|t| t.id.clone()),
             pick: None,
             nested_create: None,
+            nested_multipart: false,
         }
     }
 
@@ -216,14 +219,11 @@ impl ListView {
         let owner = format::href(owner_href, ctx.names);
         let title = format!("{owner} · {}", labels::titleize(&child.name));
         let mut list = Self::new(title, format!("{owner_href}{sub}"), Vec::new(), Some(child), Some(reg));
-        list.nested_create = child
-            .parent
-            .as_ref()
-            .and_then(|(parent, _)| reg.get(parent))
-            .and_then(|p| {
-                p.actions.iter().find(|a| a.verb == child.name && a.method == pulply_api::registry::Method::Post)
-            })
-            .and_then(|a| a.body_schema.clone());
+        let create = child.parent.as_ref().and_then(|(parent, _)| reg.get(parent)).and_then(|p| {
+            p.actions.iter().find(|a| a.verb == child.name && a.method == pulply_api::registry::Method::Post)
+        });
+        list.nested_create = create.and_then(|a| a.body_schema.clone());
+        list.nested_multipart = create.is_some_and(|a| a.multipart);
         list
     }
 
@@ -547,6 +547,9 @@ impl View for ListView {
         if self.selected().and_then(|r| r.href()).is_some_and(xray::supports) {
             h.push(Hint::new("X", t!("hint.xray")));
         }
+        if self.selected().and_then(|r| r.href()).is_some_and(|href| admin::has_actions(href, ctx)) {
+            h.push(Hint::new("m", t!("hint.actions")));
+        }
         if !ctx.readonly() {
             if self.can_create(ctx) {
                 h.push(Hint::new("c", t!("hint.create")));
@@ -581,13 +584,8 @@ impl View for ListView {
                     h.push(Hint::new("r", t!("hint.remove_content")));
                 }
             }
-            if let Some(href) = self.selected().and_then(|r| r.href()) {
-                if admin::has_actions(href, ctx) {
-                    h.push(Hint::new("m", t!("hint.actions")));
-                }
-                if admin::can_manage_roles(href, ctx) {
-                    h.push(Hint::new("o", t!("hint.roles")));
-                }
+            if self.selected().and_then(|r| r.href()).is_some_and(|href| admin::can_manage_roles(href, ctx)) {
+                h.push(Hint::new("o", t!("hint.roles")));
             }
             h.push(Hint::new("space", t!("hint.mark")));
             if self.kind == Kind::Tasks {
@@ -628,7 +626,8 @@ impl View for ListView {
                     let label = t!("action.create", name = self.title).into_owned();
                     let plugin = self.own_type(ctx).map(|t| t.plugin.clone()).unwrap_or_default();
                     let form =
-                        form::FormView::action(title, label, self.path.clone(), reg.schema(schema), reg, &plugin);
+                        form::FormView::action(title, label, self.path.clone(), reg.schema(schema), reg, &plugin)
+                            .with_multipart(self.nested_multipart);
                     return Outcome::Push(Box::new(form));
                 }
                 match self.own_type(ctx).and_then(|t| form::FormView::create(t, reg)) {

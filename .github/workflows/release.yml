@@ -127,6 +127,15 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
+      - name: "Setup Node"
+        uses: "actions/setup-node@v4"
+        with:
+          "node-version": 22
+      - name: "Build the web interface"
+        run: |
+          cd crates/pulply/web
+          npm ci --no-audit --no-fund
+          npm run build
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest

@@ -1,6 +1,14 @@
 # Single-container Pulp (pulp-oci-images) for development and integration tests.
 #   PULP_PORT=8080 docker compose -f deploy/compose.yml up -d
 # API: http://localhost:${PULP_PORT}/pulp/api/v3/  (admin / password)
+# PULP_HOST is the host name Pulp puts in the URLs it hands out (distribution base_url,
+# ansible client_url…): set it to the machine's name or IP when clients are on other machines.
+#
+# Container registry: token authentication (the Docker registry protocol). Anonymous requests
+# get a `401` challenge, so `docker login` credentials are sent: needed by pull-through
+# caches, which Pulp refuses to fill anonymously. Public distributions stay pullable without
+# login. The image generates the token key pair in ./settings/certs on first start.
+# PULP_TOKEN_AUTH_DISABLED=true goes back to Basic authentication only.
 services:
   pulp:
     image: docker.io/pulp/pulp:latest
@@ -13,9 +21,15 @@ services:
       - pulp_containers:/var/lib/containers
     environment:
       PULP_DEFAULT_ADMIN_PASSWORD: password
-      PULP_CONTENT_ORIGIN: "http://localhost:${PULP_PORT:-8080}"
-      PULP_ANSIBLE_API_HOSTNAME: "http://localhost:${PULP_PORT:-8080}"
-      PULP_ANSIBLE_CONTENT_HOSTNAME: "http://localhost:${PULP_PORT:-8080}/pulp/content"
+      PULP_CONTENT_ORIGIN: "http://${PULP_HOST:-localhost}:${PULP_PORT:-8080}"
+      PULP_ANSIBLE_API_HOSTNAME: "http://${PULP_HOST:-localhost}:${PULP_PORT:-8080}"
+      PULP_ANSIBLE_CONTENT_HOSTNAME: "http://${PULP_HOST:-localhost}:${PULP_PORT:-8080}/pulp/content"
+      PULP_TOKEN_AUTH_DISABLED: "${PULP_TOKEN_AUTH_DISABLED:-false}"
+      # Address clients fetch their token from: must be reachable by them, like CONTENT_ORIGIN.
+      PULP_TOKEN_SERVER: "http://${PULP_HOST:-localhost}:${PULP_PORT:-8080}/token/"
+      PULP_TOKEN_SIGNATURE_ALGORITHM: ES256
+      PULP_PRIVATE_KEY_PATH: /etc/pulp/certs/token_private_key.pem
+      PULP_PUBLIC_KEY_PATH: /etc/pulp/certs/token_public_key.pem
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost/pulp/api/v3/status/"]
       interval: 10s

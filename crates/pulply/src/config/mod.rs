@@ -1,5 +1,6 @@
 //! `~/.config/pulply/config.toml` plus contexts imported from pulp-cli's `cli.toml`.
 
+pub mod files;
 pub mod netrc;
 
 use std::collections::BTreeMap;
@@ -84,6 +85,9 @@ pub struct Config {
     pub upload_chunk_size: usize,
     pub default_context: Option<String>,
     pub skin: String,
+    pub import_pulp_cli: bool,
+    /// `config.toml` (it may not exist yet).
+    pub path: Option<PathBuf>,
     /// Directory of the config file, holding the annex files (`skins/`, `hotkeys.toml`…).
     pub dir: Option<PathBuf>,
     /// `hotkeys.toml`, `aliases.toml`, `views.toml`.
@@ -140,7 +144,8 @@ impl Config {
             _ => BTreeMap::new(),
         };
         let mut config = Self::merge(file, imported)?;
-        config.dir = path.and_then(|p| p.parent().map(Path::to_path_buf));
+        config.dir = path.as_deref().and_then(Path::parent).map(Path::to_path_buf);
+        config.path = path;
         config.custom = crate::custom::Custom::load(config.dir.as_deref())?;
         Ok(config)
     }
@@ -160,6 +165,8 @@ impl Config {
             upload_chunk_size: parse_size(&file.upload_chunk_size).wrap_err("upload_chunk_size")?,
             default_context: file.default_context,
             skin: file.skin,
+            import_pulp_cli: file.import_pulp_cli,
+            path: None,
             dir: None,
             custom: Default::default(),
             contexts: contexts.into_values().collect(),

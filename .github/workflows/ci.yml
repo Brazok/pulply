@@ -17,6 +17,17 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/pulply/web/package-lock.json
+      - name: Web interface (tests, typecheck + build, embedded by `pulply serve`)
+        working-directory: crates/pulply/web
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace

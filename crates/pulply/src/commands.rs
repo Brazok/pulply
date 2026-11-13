@@ -7,6 +7,8 @@ pub enum Target {
     Dashboard,
     Contexts,
     Context(String),
+    /// `:config` list, or the file with this key opened in `$EDITOR` (`hotkeys`, `skin/dark`).
+    Config(Option<String>),
     /// Registry type id (`repositories/rpm/rpm`, `tasks`).
     Resource(String),
     Help,
@@ -14,8 +16,8 @@ pub enum Target {
     Me,
     Quit,
     RefreshSchema,
-    /// Global operation form (`tasks/purge/`, `orphans/cleanup/`, `repositories/reclaim_space/`, `repair/`).
-    Operation(Op),
+    /// Global operation form, by path relative to the API prefix (`tasks/purge/`, `rpm/copy/`).
+    Operation(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +29,13 @@ pub enum Op {
 }
 
 impl Op {
+    const ALL: [Op; 4] = [Op::Purge, Op::Orphans, Op::Reclaim, Op::Repair];
+
+    /// Built-in operation served at `rel`, if any.
+    pub fn from_rel(rel: &str) -> Option<Op> {
+        Self::ALL.into_iter().find(|op| op.rel_path() == rel)
+    }
+
     /// Path relative to the API prefix.
     pub fn rel_path(self) -> &'static str {
         match self {
@@ -76,7 +85,7 @@ const ALIASES: &[(&str, &[&str])] = &[
 ];
 
 const BUILTINS: &[&str] =
-    &["dashboard", "ctx", "help", "me", "quit", "refresh-schema", "purge", "orphans", "reclaim", "repair"];
+    &["dashboard", "ctx", "config", "help", "me", "quit", "refresh-schema", "purge", "orphans", "reclaim", "repair"];
 
 fn canonical(word: &str) -> Option<&'static str> {
     ALIASES.iter().find(|(_, al)| al.contains(&word)).map(|(c, _)| *c)
@@ -96,17 +105,27 @@ pub fn parse(input: &str, reg: Option<&Registry>) -> Result<Target, String> {
         "ctx" | "context" | "contexts" => {
             return Ok(if arg.is_empty() { Target::Contexts } else { Target::Context(arg) });
         }
+        "config" | "cfg" | "conf" | "settings" => {
+            return Ok(Target::Config((!arg.is_empty()).then_some(arg)));
+        }
         "q" | "q!" | "quit" | "exit" => return Ok(Target::Quit),
         "help" | "?" => return Ok(Target::Help),
         "me" | "whoami" => return Ok(Target::Me),
         "refresh-schema" => return Ok(Target::RefreshSchema),
-        "purge" | "task-purge" => return Ok(Target::Operation(Op::Purge)),
-        "orphans" | "orphan" => return Ok(Target::Operation(Op::Orphans)),
-        "reclaim" => return Ok(Target::Operation(Op::Reclaim)),
-        "repair" => return Ok(Target::Operation(Op::Repair)),
+        "purge" | "task-purge" => return Ok(Target::Operation(Op::Purge.rel_path().into())),
+        "orphans" | "orphan" => return Ok(Target::Operation(Op::Orphans.rel_path().into())),
+        "reclaim" => return Ok(Target::Operation(Op::Reclaim.rel_path().into())),
+        "repair" => return Ok(Target::Operation(Op::Repair.rel_path().into())),
         _ => {}
     }
     let Some(reg) = reg else { return Err(format!("schema not loaded yet: {input}")) };
+    if head == "op" {
+        let rel = format!("{}/", arg.trim_matches('/'));
+        return match reg.operation(&rel) {
+            Some(_) => Ok(Target::Operation(rel)),
+            None => Err(format!("unknown operation: {arg}")),
+        };
+    }
     if reg.get(head).is_some() && arg.is_empty() {
         return Ok(Target::Resource(head.to_owned()));
     }
@@ -159,6 +178,12 @@ pub fn completions(reg: Option<&Registry>, contexts: &[String]) -> Vec<String> {
                 (false, None) => out.push(t.id.clone()),
             }
         }
+        out.extend(
+            reg.operation_paths()
+                .into_iter()
+                .filter(|rel| Op::from_rel(rel).is_none())
+                .map(|rel| format!("op {}", rel.trim_end_matches('/'))),
+        );
     }
     out.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
     out.dedup();
@@ -200,9 +225,23 @@ mod tests {
     fn builtins_work_without_schema() {
         assert_eq!(parse("ctx", None), Ok(Target::Contexts));
         assert_eq!(parse("q", None), Ok(Target::Quit));
+        assert_eq!(parse("config", None), Ok(Target::Config(None)));
+        assert_eq!(parse("cfg skin dark", None), Ok(Target::Config(Some("skin/dark".into()))));
         assert!(parse("repo", None).is_err());
-        assert_eq!(parse("orphan", None), Ok(Target::Operation(Op::Orphans)));
-        assert_eq!(parse("task-purge", None), Ok(Target::Operation(Op::Purge)));
+        assert_eq!(parse("orphan", None), Ok(Target::Operation("orphans/cleanup/".into())));
+        assert_eq!(parse("task-purge", None), Ok(Target::Operation("tasks/purge/".into())));
+    }
+
+    #[test]
+    fn op_runs_any_global_operation() {
+        let reg = registry();
+        assert_eq!(parse("op rpm/copy", Some(&reg)), Ok(Target::Operation("rpm/copy/".into())));
+        assert_eq!(parse("op rpm copy", Some(&reg)), Ok(Target::Operation("rpm/copy/".into())));
+        assert_eq!(parse("op tasks/purge/", Some(&reg)), Ok(Target::Operation("tasks/purge/".into())));
+        assert!(parse("op nope", Some(&reg)).is_err());
+        let all = completions(Some(&reg), &[]);
+        assert!(all.iter().any(|c| c == "op remotes/python/python/from_bandersnatch"));
+        assert!(!all.iter().any(|c| c == "op tasks/purge"), "built-ins keep their own command");
     }
 
     #[test]

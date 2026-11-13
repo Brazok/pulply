@@ -193,6 +193,8 @@ password = "password"
 
 Fichiers annexes, dans le répertoire de `config.toml` (R14) : `hotkeys.toml` (touche → commande `:`, prioritaire sur les touches de vue), `aliases.toml` (premier mot de la commande), `views.toml` (colonnes par identifiant de type, chemins JSON pointés), `plugins.toml` (`[plugins.<nom>]` : `key`, `description`, `scopes`, `command`, `args`, `background`), `skins/*.toml` (couleurs du `Theme`, `inherit` d'un autre skin). Plugins au premier plan : `ratatui::restore()`, lecture des événements coupée, attente d'Entrée, puis `ratatui::init()`.
 
+`:config` (R14.6, `config/files.rs`, `views/config.rs`) : l'éditeur travaille sur une copie temporaire (même nom de fichier, pour la coloration) précédée de lignes `#~` d'aide et d'erreur. Un contenu modifié est écrit en place puis validé par `Config::load` (même chemin que `--config`) et le chargement des skins concernés ; en cas d'erreur l'original est restauré (ou le fichier supprimé s'il n'existait pas). `App::apply_config` remplace la config, recharge langue, skin, intervalle et complétions, et reconnecte si le `ContextConfig` courant a changé.
+
 ## 5. Dépendances principales
 
 | Besoin | Crate |

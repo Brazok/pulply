@@ -6,6 +6,8 @@ Terminal UI to observe and manage [Pulp 3](https://pulpproject.org) servers, in 
 Every resource type exposed by the server (all installed plugins) is discovered from its OpenAPI
 schema and browsable from the sidebar or the `:` command line.
 
+`pulply serve` offers the same features as a web interface (see [Web interface](#web-interface)).
+
 Status: milestones M1 (observe), M2 (create/edit/delete, workflows), M3 (plugin views, upload, diff,
 relations) and M4 (RBAC, administration, customization, packaging) done. See [`docs/spec/`](docs/spec/)
 for requirements, design and roadmap.
@@ -100,6 +102,20 @@ args = ["$DIST_URL"]
 background = true               # else the TUI is suspended until Enter is pressed
 ```
 
+### Editing from the TUI
+
+`:config` lists every configuration file — `config.toml`, `hotkeys.toml`, `aliases.toml`, `views.toml`,
+`plugins.toml`, the skins (built-in `dark` / `light` and yours) and pulp-cli's `cli.toml` — with its state
+(present, defaults, built-in). `Enter` or `e` opens it in `$VISUAL`/`$EDITOR`; a missing file starts from a
+template holding the defaults (the built-in colors for a skin), so `config.toml` is created with the
+default settings ready to change. `:config <file>` opens one directly (`:config main`, `:config hotkeys`,
+`:config skin dark`, `:config pulp-cli`).
+
+On save pulply reloads its whole configuration and applies it at once (language, skin, refresh, hotkeys,
+aliases, columns, plugins); a change to the current context reconnects. An invalid file is not kept: the
+previous content is restored and the editor reopens with the error on top (`#~` lines); quit without
+changing anything to give up.
+
 Skin colors: `muted accent border border_focus header_bg header_fg selection_bg success warning error
 info key` (see [`crates/pulply/skins/dark.toml`](crates/pulply/skins/dark.toml)). Plugin variables:
 `$HREF $NAME $TYPE $PRN $BASE_URL $API_URL $CONTEXT $DIST_URL $USER`, also exported as `PULPLY_<NAME>`.
@@ -117,7 +133,7 @@ Browse:
 
 | Key | Action |
 |---|---|
-| `:` | command mode (`:repo rpm`, `:content container/tags`, `:dist`, `:task`, `:user`, `:group`, `:role`, `:me`, `:ctx`, `:q`); `Tab` completes |
+| `:` | command mode (`:repo rpm`, `:content container/tags`, `:dist`, `:task`, `:user`, `:group`, `:role`, `:me`, `:ctx`, `:config`, `:q`); `Tab` completes |
 | `/` | filter rows; `-q <expr>` and `-f key=value` are sent to the API |
 | `Enter` / `Esc` | drill down (repository → versions → content) / back |
 | `d` | describe (follow hrefs with `Enter`) |
@@ -144,18 +160,89 @@ Manage (hidden and refused with `--readonly` or `readonly = true`):
 | `U` | upload local files (on a repository row or in a content list); content is created and added to the repository |
 | `Ctrl-K` | cancel task |
 | `:purge` `:orphans` `:reclaim` `:repair` | global operations, after confirmation |
-| `m` | menu of every action of the resource (`reset` access policy, `replicate` upstream Pulp, `exports`, `imports`, `set_label`…) |
+| `:op <path>` | any other global operation of the server, e.g. `:op rpm/copy`, `:op rpm/comps`, `:op rpm/prune`, `:op importers/core/pulp/import-check` (completed with Tab) |
+| `m` | menu of every action of the resource (`reset` access policy, `replicate` upstream Pulp, `exports`, `imports`, `set_label`…) and of its read-only reports (`metrics`, `path_index_status`, task `profile_artifacts`…) |
 | `o` | role assignments on the resource (`a` add / `r` remove users and groups) |
 | `c` in group users / user roles | add a member / assign a role (`Ctrl-D` removes it) |
 
 Tasks started from pulply open a progress window (`Esc` detaches it), are followed in the status
 bar and notify on completion; a distribution's URL is shown once created.
 
+## Web interface
+
+```sh
+pulply serve                         # http://127.0.0.1:8484/, default context
+pulply serve --context lab --open    # opens the browser on context lab
+pulply serve --readonly              # no modification possible from the interface
+pulply serve --listen 0.0.0.0:8484   # on the network: prints a link with the token for each address
+```
+
+Outside a loopback address, every browser must present the access token: the printed links carry
+it (`#token=…`), or it is asked on the first visit. It changes at each start unless fixed with
+`--token` or `PULPLY_WEB_TOKEN`. The traffic is plain HTTP and the server acts with your Pulp
+credentials: serve on a trusted network, or behind a TLS reverse proxy. `make serve-lan` does the
+same from the repository.
+
+The interface is built with [shadcn/ui](https://ui.shadcn.com) and embedded in the binary. It uses the same
+configuration and contexts as the TUI, and the same discovery of the server's OpenAPI schema: every
+plugin's resources can be listed (search, filters, sorting, pagination), created, edited and
+deleted; repositories are synced, published, distributed and rolled back from their page; content
+is uploaded from the browser (chunked) and added to or removed from repositories; tasks are followed
+live; role assignments, global operations (orphan cleanup, repair, reclaim, purge, copy, prune…) and
+every plugin action are available. `Ctrl-K` / `⌘K` jumps to any resource type. The **Simple** mode
+(the default, top right) keeps the repositories, remotes, distributions and everyday actions;
+**Advanced** shows every resource type, field and operation.
+The **Map** tab of a remote, repository, version, publication or distribution draws the chain it
+belongs to (remote → repository → versions → publications → distributions → client URL).
+For a container pull-through cache it shows the remote, the distribution, the cached images and
+the `docker login` / `docker pull` commands clients use.
+
+- **Disk usage** breaks the server's storage down by plugin, content type and repository, orphans
+  included. Pulp has no endpoint for this: `pulply serve` reads every artifact and content unit in
+  the background (with progress, cancellable) and keeps the last report on disk.
+- **Maintenance** runs the usual server maintenance in one click: orphan cleanup (with the current
+  count), task purge (older than 7, 30, 90 or 365 days), storage repair (quick check or full
+  checksum verification) and space reclaim, each with its last run; `Options…` opens the full form.
+- **Administration** gathers users, groups, roles, access policies and the other admin resources.
+
+The pulply server keeps the Pulp credentials (asked once in the browser when they are not in the
+configuration) and relays the browser's requests to Pulp. Every API request needs an access token:
+
+- on a loopback address (default `127.0.0.1:8484`), the token is embedded in the served page and
+  requests with a foreign `Host` header are refused (DNS rebinding);
+- on any other address (`--listen 0.0.0.0:8484`), the URL printed at startup carries the token
+  (`#token=…`), or the interface asks for it. Anyone with the token acts with your Pulp
+  credentials: prefer a loopback address behind an SSH tunnel or a reverse proxy.
+
+The token is random at each start, or fixed with `--token` / `PULPLY_WEB_TOKEN`.
+
 ## Development
 
 ```sh
-PULP_PORT=8080 docker compose -f deploy/compose.yml up -d   # admin / password
-cargo test --workspace
+make            # formatting, clippy, Rust and web tests, release build (`make help` for the rest)
+make pulp-up    # local Pulp on :8080 (admin / password)
+make pulp-up PULP_HOST=192.168.1.10   # same, with download URLs reachable from other machines
+```
+
+The local Pulp's registry uses token authentication, so `docker login` works and pull-through
+caches can be filled (`docker login <host>:<port>` then `docker pull <host>:<port>/<path>/<image>`).
+`PULP_TOKEN_AUTH_DISABLED=true make pulp-up` goes back to Basic authentication only. A local Pulp
+started before token authentication was enabled is recreated by `make pulp-up` (the image then
+generates the token key pair in `deploy/settings/certs/`, ignored by git).
+
+```sh
+make serve ARGS="--context lab"
+```
+
+The web interface lives in `crates/pulply/web` (React, Vite, shadcn/ui on Radix, Tailwind CSS, TanStack Query).
+`cargo build` rebuilds it (`npm ci` + `npm run build`, Node 20.19+) when its sources changed, and
+warns instead of failing without npm (`PULPLY_SKIP_WEB=1` skips it). The UI components are shadcn/ui
+sources in `src/components/ui` (`npx shadcn add <component>` adds one). To work on it with hot reload:
+
+```sh
+cargo run -- serve --token dev                      # API on 127.0.0.1:8484
+cd crates/pulply/web && npm run dev                 # open http://localhost:5173/#token=dev
+npm test && npm run typecheck
 ```
 
 ### Release

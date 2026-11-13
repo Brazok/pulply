@@ -49,15 +49,27 @@ Chaque jalon produit un binaire utilisable et testé contre `deploy/compose.yml`
 
 ## M4 — Admin, personnalisation, i18n, distribution
 
-- [x] Vues RBAC & admin, `:me`, gestion des 403 — R12. Colonnes users/groups/roles/access policies/upstream pulps/task schedules/signing services ; collections enfants (membres, rôles) liées depuis le describe, création et retrait de membres ; `o` : `list_roles` / `add_role` / `remove_role` ; `m` : toute action POST de la ressource (reset, replicate, exports, imports, set_label…). Les permissions effectives de `:me` se limitent à ce que l'utilisateur peut lire (un non-admin ne lit ni son utilisateur ni ses rôles par défaut).
+- [x] Vues RBAC & admin, `:me`, gestion des 403 — R12. Colonnes users/groups/roles/access policies/upstream pulps/task schedules/signing services ; collections enfants (membres, rôles) liées depuis le describe, création et retrait de membres ; `o` : `list_roles` / `add_role` / `remove_role` ; `m` : toute action POST de la ressource (reset, replicate, exports, imports, set_label…) et les actions GET renvoyant du JSON (metrics, profile_artifacts…) ; `:op <chemin>` pour toute opération globale, champs fichier envoyés en multipart. Les permissions effectives de `:me` se limitent à ce que l'utilisateur peut lire (un non-admin ne lit ni son utilisateur ni ses rôles par défaut).
 - [x] Skins (`dark`, `light`, par contexte) — R14.1. Skins embarqués dans `crates/pulply/skins/`, `inherit` pour n'en surcharger qu'une partie.
 - [x] Hotkeys, alias, colonnes configurables — R14.2–R14.4
 - [x] Plugins shell — R14.5. Variables aussi exportées en `PULPLY_<NOM>` ; au premier plan, retour à la TUI après Entrée.
+- [x] `:config` : édition des fichiers de configuration dans `$EDITOR`, modèles par défaut, rechargement à chaud, retour arrière si invalide — R14.6
 - [x] Traduction FR complète — R15.1
 - [x] Release : cargo-dist, `.deb`, `.rpm`, Homebrew, image OCI, crates.io — R16.3. Vérifié localement (`dist plan`, paquets deb/rpm, `cargo package --workspace`, image distroless de 6,5 Mo testée contre le conteneur) ; le workflow GitHub n'a pas encore tourné.
 - [x] README (installation, config, raccourcis), captures
 
 **Acceptation M4** : un utilisateur non admin voit uniquement les actions permises ; la release produit tous les artefacts.
+
+## M5 — Interface web
+
+- [x] `pulply serve` : serveur axum embarqué, proxy authentifié vers Pulp (identifiants côté serveur, mot de passe demandé dans le navigateur si absent), registre OpenAPI exporté en JSON, SPA embarquée (`rust-embed`, construite par `build.rs`).
+- [x] Sécurité : jeton d'accès sur toute l'API (dans la page en loopback avec contrôle du `Host`, affiché au démarrage sinon), `--readonly` appliqué par le proxy.
+- [x] SPA React + shadcn/ui (Radix) : tableau de bord, navigation par plugin et palette `Ctrl-K`, listes (recherche, filtres, tri, pagination, actions groupées), détail (onglets contenu, versions, publication, rôles, JSON), formulaires générés depuis le schéma (sélecteurs de ressources, champs fichier), sync / publish / distribute / rollback, upload par morceaux, ajout et retrait de contenu, suivi des tâches, opérations globales, thème clair/sombre, modes simple (par défaut) et avancé, mobile.
+- [x] Cartes : onglet **Carte** des remotes, dépôts, versions, publications et distributions (chaîne remote → URL client) ; carte du cache pull-through des conteneurs (remote, distribution, images en cache, commandes `docker login` / `pull`), chemins tirés du label `pulp_container.pull_through`.
+- [x] Page **Stockage** : analyse de l'espace disque par `pulply serve` en tâche de fond (annulable, progression, dernier rapport gardé sur disque), par plugin, type de contenu et dépôt, orphelins compris.
+- [x] Page **Maintenance** : nettoyage des orphelins, purge des tâches (âges prédéfinis), réparation du stockage, récupération d'espace en un clic avec la dernière exécution ; autres opérations de maintenance (prune, datarepair, migration de domaine) séparées des opérations sur le contenu. Page **Administration**.
+- [x] Serveur : lectures authentifiées par cookie de session Django, `ETag` sur le registre et l'état du stockage, en-têtes de sécurité (CSP, `X-Frame-Options`…), arrêt propre sur `SIGTERM`. Pulp local : authentification par jeton du registre.
+- [x] Testée de bout en bout contre un conteneur Pulp (création, upload 7 Mo vérifié par sha256, sync distante, publication, distribution, rollback, suppression, mot de passe, lecture seule, mode jeton).
 
 ## Correctifs
 

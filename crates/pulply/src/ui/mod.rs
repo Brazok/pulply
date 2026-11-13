@@ -217,7 +217,7 @@ fn draw_help(f: &mut Frame, app: &App) {
     }
     lines.push(Line::raw(""));
     lines.push(section(t!("help.commands").into_owned()));
-    for example in ["repo rpm", "content container/tags", "dist", "task", "ctx", "dashboard", "q"] {
+    for example in ["repo rpm", "content container/tags", "dist", "task", "ctx", "config", "dashboard", "q"] {
         lines.push(Line::from(vec![Span::styled(format!("  :{example}"), app.theme.key())]));
     }
     let height = (lines.len() as u16 + 2).min(f.area().height);

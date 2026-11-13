@@ -11,6 +11,15 @@ const BUILTIN: &[(&str, &str)] =
 
 pub const DEFAULT_SKIN: &str = "dark";
 
+pub fn builtin_names() -> impl Iterator<Item = &'static str> {
+    BUILTIN.iter().map(|(n, _)| *n)
+}
+
+/// Source of a built-in skin.
+pub fn builtin(name: &str) -> Option<&'static str> {
+    BUILTIN.iter().find(|(n, _)| *n == name).map(|(_, text)| *text)
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Theme {
     pub muted: Color,
@@ -62,11 +71,7 @@ impl Theme {
         let file = dir.map(|d| d.join("skins").join(format!("{name}.toml"))).filter(|p| p.exists());
         let text = match &file {
             Some(p) => std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?,
-            None => BUILTIN
-                .iter()
-                .find(|(n, _)| *n == name)
-                .map(|(_, t)| (*t).to_owned())
-                .ok_or_else(|| format!("unknown skin '{name}'"))?,
+            None => builtin(name).map(str::to_owned).ok_or_else(|| format!("unknown skin '{name}'"))?,
         };
         Self::default().apply(&text, dir, depth).map_err(|e| format!("skin '{name}': {e}"))
     }

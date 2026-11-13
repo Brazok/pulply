@@ -2,6 +2,7 @@
 //! fields only) and actions (sync, publish, distribute, global operations).
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -38,6 +39,8 @@ pub enum FieldKind {
     Json,
     /// Href; `Some(type id)` when a picker can list candidates.
     Relation(Option<String>),
+    /// Binary field: path of a local file sent as a multipart part.
+    File,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +65,7 @@ impl Field {
                 | FieldKind::List(_)
                 | FieldKind::Json
                 | FieldKind::Relation(_)
+                | FieldKind::File
         )
     }
 
@@ -72,7 +76,7 @@ impl Field {
             return Ok(None);
         }
         let v = match &self.kind {
-            FieldKind::Text | FieldKind::Secret | FieldKind::Relation(_) | FieldKind::Enum(_) => {
+            FieldKind::Text | FieldKind::Secret | FieldKind::Relation(_) | FieldKind::Enum(_) | FieldKind::File => {
                 Value::String(raw.to_owned())
             }
             FieldKind::Integer => {
@@ -124,7 +128,7 @@ pub fn fields_from_schema(schema: &Schema, reg: &Registry, plugin: &str) -> Vec<
     let mut fields: Vec<Field> = schema
         .properties
         .iter()
-        .filter(|(_, p)| !p.read_only && p.format.as_deref() != Some("binary"))
+        .filter(|(_, p)| !p.read_only)
         .map(|(name, p)| build_field(name, p, schema, reg, plugin))
         .collect();
     fields.sort_by_key(|f| !f.required);
@@ -134,6 +138,7 @@ pub fn fields_from_schema(schema: &Schema, reg: &Registry, plugin: &str) -> Vec<
 fn build_field(name: &str, p: &Property, schema: &Schema, reg: &Registry, plugin: &str) -> Field {
     let choices = reg.enum_choices(p);
     let kind = match p.ty.as_deref() {
+        _ if p.format.as_deref() == Some("binary") => FieldKind::File,
         Some("array") => FieldKind::List(choices),
         _ if !choices.is_empty() => FieldKind::Enum(choices),
         Some("boolean") => FieldKind::Bool,
@@ -153,6 +158,14 @@ fn build_field(name: &str, p: &Property, schema: &Schema, reg: &Registry, plugin
         nullable: p.nullable,
         help,
         value: String::new(),
+    }
+}
+
+/// Local path typed in a file field, with `~/` expanded.
+fn local_path(raw: &str) -> PathBuf {
+    match raw.strip_prefix("~/").zip(directories::BaseDirs::new()) {
+        Some((rest, dirs)) => dirs.home_dir().join(rest),
+        None => PathBuf::from(raw),
     }
 }
 
@@ -183,6 +196,10 @@ pub struct FormView {
     label: String,
     after: AfterTask,
     confirm: Option<String>,
+    /// Send as `multipart/form-data` even without files (endpoint refuses JSON).
+    multipart: bool,
+    /// Title of the view showing a synchronous, non-task response (`import-check/`).
+    show_result: Option<String>,
     state: ListState,
 }
 
@@ -205,6 +222,8 @@ impl FormView {
             label,
             after: AfterTask::None,
             confirm: None,
+            multipart: false,
+            show_result: None,
             state: ListState::default(),
         }
     }
@@ -214,7 +233,8 @@ impl FormView {
         let schema = reg.schema(t.create_schema.as_deref()?)?;
         let title = t!("form.create", what = labels::type_title(t)).into_owned();
         let label = t!("action.create", name = labels::type_title(t)).into_owned();
-        Some(Self::new(title, label, Method::POST, t.list_path.clone()?, fields_from_schema(schema, reg, &t.plugin)))
+        let fields = fields_from_schema(schema, reg, &t.plugin);
+        Some(Self::new(title, label, Method::POST, t.list_path.clone()?, fields).with_multipart(t.create_multipart))
     }
 
     /// Edit form for an existing resource (`u`); only changed fields are PATCHed.
@@ -256,6 +276,17 @@ impl FormView {
         self
     }
 
+    pub fn with_multipart(mut self, multipart: bool) -> Self {
+        self.multipart = multipart;
+        self
+    }
+
+    /// Shows a synchronous response (neither a task nor empty) in a view titled `title`.
+    pub fn with_result(mut self, title: String) -> Self {
+        self.show_result = Some(title);
+        self
+    }
+
     pub fn with_confirm(mut self, message: String) -> Self {
         self.confirm = Some(message);
         self
@@ -278,6 +309,17 @@ impl FormView {
         self.general = None;
         let mut body = Map::new();
         for f in &self.fields {
+            if f.kind == FieldKind::File {
+                let raw = f.value.trim();
+                if raw.is_empty() {
+                    if f.required && self.original.is_none() {
+                        self.errors.insert(f.name.clone(), vec![t!("form.required").into_owned()]);
+                    }
+                } else if !local_path(raw).is_file() {
+                    self.errors.insert(f.name.clone(), vec![t!("form.no_file").into_owned()]);
+                }
+                continue;
+            }
             let value = match f.json() {
                 Ok(v) => v,
                 Err(e) => {
@@ -316,6 +358,15 @@ impl FormView {
         self.errors.is_empty().then_some(Value::Object(body))
     }
 
+    /// Filled file fields, as multipart parts.
+    fn files(&self) -> Vec<(String, PathBuf)> {
+        self.fields
+            .iter()
+            .filter(|f| f.kind == FieldKind::File && !f.value.trim().is_empty())
+            .map(|f| (f.name.clone(), local_path(f.value.trim())))
+            .collect()
+    }
+
     fn submit(&mut self, ctx: &Ctx) -> Outcome {
         if ctx.readonly() {
             return Outcome::readonly();
@@ -330,9 +381,13 @@ impl FormView {
                 Outcome::Notify(super::Level::Info, t!("form.no_changes").into_owned()),
             ]);
         }
-        let mutation = Mutation::new(self.method.clone(), self.path.clone(), Some(body), self.label.clone())
+        let mut mutation = Mutation::new(self.method.clone(), self.path.clone(), Some(body), self.label.clone())
             .after(self.after.clone())
             .reply_to(self.id);
+        let files = self.files();
+        if self.multipart || !files.is_empty() {
+            mutation = mutation.multipart(files);
+        }
         self.submitting = true;
         match &self.confirm {
             Some(msg) => {
@@ -493,6 +548,9 @@ impl View for FormView {
         let help_text = match self.fields.get(self.focus) {
             Some(fld) => {
                 let mut text = fld.help.clone().unwrap_or_default();
+                if fld.kind == FieldKind::File {
+                    text = format!("[{}] {text}", t!("form.file_help"));
+                }
                 if let FieldKind::Enum(c) | FieldKind::List(c) = &fld.kind
                     && !c.is_empty()
                 {
@@ -538,7 +596,17 @@ impl View for FormView {
     fn on_mutated(&mut self, result: &Result<Value, Error>) -> Outcome {
         self.submitting = false;
         match result {
-            Ok(_) => Outcome::Pop,
+            Ok(v) => match &self.show_result {
+                Some(title)
+                    if pulply_api::models::task_href(v).is_none() && v.as_object().is_some_and(|o| !o.is_empty()) =>
+                {
+                    Outcome::Batch(vec![
+                        Outcome::Pop,
+                        Outcome::Push(Box::new(super::raw::RawView::value(title.clone(), v.clone()))),
+                    ])
+                }
+                _ => Outcome::Pop,
+            },
             Err(Error::Validation(fields)) => {
                 let mut fields = fields.clone();
                 let general: Vec<String> =
@@ -632,6 +700,40 @@ mod tests {
         assert!(f.errors.contains_key("name"));
         f.fields[0].value = "iso".into();
         assert_eq!(f.body(), Some(json!({"name": "iso", "url": "http://x"})));
+    }
+
+    #[test]
+    fn file_fields_become_parts_not_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let comps = dir.path().join("comps.xml");
+        std::fs::write(&comps, "<comps/>").unwrap();
+        let mut file = field("file", FieldKind::File, comps.to_str().unwrap());
+        file.required = true;
+        let mut f = form(vec![file, field("repository", FieldKind::Text, "/r/")], None);
+        assert_eq!(f.body(), Some(json!({"repository": "/r/"})));
+        assert_eq!(f.files(), [("file".to_owned(), comps)]);
+
+        f.fields[0].value = dir.path().join("missing").to_string_lossy().into_owned();
+        assert_eq!(f.body(), None);
+        f.fields[0].value.clear();
+        assert_eq!(f.body(), None, "required");
+        assert!(f.errors.contains_key("file"));
+    }
+
+    #[test]
+    fn content_creation_is_sent_as_multipart() {
+        let reg = crate::testutil::registry();
+        let packages = FormView::create(reg.get("content/rpm/packages").unwrap(), &reg).unwrap();
+        assert!(packages.multipart && packages.fields.iter().any(|f| f.name == "file" && f.kind == FieldKind::File));
+        assert!(!FormView::create(reg.get("repositories/rpm/rpm").unwrap(), &reg).unwrap().multipart);
+    }
+
+    #[test]
+    fn binary_schema_properties_are_file_fields() {
+        let reg = crate::testutil::registry();
+        let fields = fields_from_schema(reg.schema("CompsXml").unwrap(), &reg, "rpm");
+        let file = fields.iter().find(|f| f.name == "file").unwrap();
+        assert!(file.kind == FieldKind::File && file.required);
     }
 
     #[test]

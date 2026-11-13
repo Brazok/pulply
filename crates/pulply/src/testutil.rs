@@ -46,6 +46,8 @@ pub fn config() -> Config {
         upload_chunk_size: 6 << 20,
         default_context: None,
         skin: "dark".into(),
+        import_pulp_cli: false,
+        path: None,
         dir: None,
         custom: Default::default(),
         contexts: Vec::new(),
